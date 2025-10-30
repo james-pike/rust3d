@@ -101,7 +101,7 @@ fn setup(
             base_color: Color::BLACK,
             perceptual_roughness: 1.0,
             double_sided: false,
-            unlit: false,
+            unlit: true,
             ..default()
         })),
     ));
