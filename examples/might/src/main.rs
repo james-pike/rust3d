@@ -24,7 +24,7 @@ fn main() {
     // -----------------------------------------------------------------
     // 1. Verify the model exists
     // -----------------------------------------------------------------
-    let knight_model_path = std::path::Path::new("../assets/scenes/knight.glb");
+    let knight_model_path = std::path::Path::new("../assets/scenes/knight_uncompressed.glb");
     if !knight_model_path.exists() {
         dbg!(
             "knight.glb does not exist at {:?}.\n\
@@ -176,7 +176,7 @@ pub struct AuraMaterial {
 
 impl Material for AuraMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/aura.wgsl".into()
+        "shaders/aura2.wgsl".into()
     }
 
     fn alpha_mode(&self) -> AlphaMode {

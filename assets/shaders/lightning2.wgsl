@@ -61,45 +61,6 @@ fn lightning_bolt(p: vec2f, seed: f32, time: f32) -> f32 {
     return dist;
 }
 
-// Generate random directional lightning strikes
-fn random_lightning_strike(p: vec2f, seed: f32, time: f32) -> f32 {
-    var dist = 1000.0;
-    
-    // Random angle for this bolt
-    let random_angle = hash(vec2f(seed, 0.0)) * 6.28;
-    let start_offset = hash(vec2f(seed, 1.0)) * 0.4 + 0.2;
-    
-    var current_pos = vec2f(
-        cos(random_angle) * start_offset,
-        sin(random_angle) * start_offset
-    );
-    
-    // Shorter, more erratic path
-    for (var i = 0; i < 4; i++) {
-        let t = f32(i) / 4.0;
-        
-        // More random deviation
-        let deviation_x = (hash(vec2f(seed * 2.0, f32(i) * 2.0)) - 0.5) * 0.3;
-        let deviation_y = (hash(vec2f(seed * 3.0, f32(i) * 3.0)) - 0.5) * 0.3;
-        
-        let next_pos = vec2f(
-            cos(random_angle) * (start_offset + t * 0.6) + deviation_x,
-            sin(random_angle) * (start_offset + t * 0.6) + deviation_y
-        );
-        
-        // Distance to line segment
-        let pa = p - current_pos;
-        let ba = next_pos - current_pos;
-        let h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-        let segment_dist = length(pa - ba * h);
-        
-        dist = min(dist, segment_dist);
-        current_pos = next_pos;
-    }
-    
-    return dist;
-}
-
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     var uv = in.uv;
@@ -121,7 +82,6 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     var lightning_intensity = 0.0;
     let num_bolts = 8.0;
     
-    // Main circular bolts
     for (var i = 0.0; i < num_bolts; i += 1.0) {
         // Each bolt has different timing for variety
         let bolt_time = time * 2.0 + i * 0.5;
@@ -139,28 +99,6 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
             let bolt_glow = smoothstep(0.15, 0.0, bolt_dist);
             
             lightning_intensity += (bolt_core + bolt_glow * 0.5) * bolt_visibility;
-        }
-    }
-    
-    // Random directional strikes
-    let num_random_strikes = 12.0;
-    for (var j = 0.0; j < num_random_strikes; j += 1.0) {
-        // Faster, more frequent timing for chaotic effect
-        let strike_time = time * 3.5 + j * 0.7;
-        let strike_phase = fract(strike_time * 0.4);
-        
-        // Quick flash appearance
-        let strike_visibility = smoothstep(0.0, 0.05, strike_phase) * (1.0 - smoothstep(0.1, 0.25, strike_phase));
-        
-        if (strike_visibility > 0.01) {
-            let strike_seed = j / num_random_strikes + floor(strike_time * 0.4) * 0.456;
-            let strike_dist = random_lightning_strike(uv, strike_seed, time);
-            
-            // Smaller, thinner strikes
-            let strike_core = smoothstep(0.025, 0.0, strike_dist);
-            let strike_glow = smoothstep(0.15, 0.0, strike_dist);
-            
-            lightning_intensity += (strike_core * 1.5 + strike_glow * 0.5) * strike_visibility;
         }
     }
     
