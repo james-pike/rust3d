@@ -8,10 +8,11 @@ use bevy_egui::{
 use bevy_ggrs::{ggrs::DesyncDetection, prelude::*, *};
 use bevy_matchbox::prelude::*;
 use bevy_roll_safe::prelude::*;
+use bevy::scene::SceneRoot;
 use clap::Parser;
 use components::*;
 use input::*;
-use rand::{Rng, RngCore, SeedableRng, rng};
+use rand::{Rng, SeedableRng, rng};
 use rand_xoshiro::Xoshiro256PlusPlus;
 
 mod args;
@@ -50,6 +51,14 @@ impl Default for RoundEndTimer {
 #[derive(Resource, Default, Clone, Copy, Debug, Deref, DerefMut)]
 struct SessionSeed(u64);
 
+#[derive(AssetCollection, Resource)]
+struct ModelAssets {
+    #[asset(path = "player1.glb#Scene0")]
+    player_1: Handle<Scene>,
+    #[asset(path = "player2.glb#Scene0")]
+    player_2: Handle<Scene>,
+}
+
 fn main() {
     let args = Args::parse();
     eprintln!("{args:?}");
@@ -73,7 +82,7 @@ fn main() {
         .init_state::<GameState>()
         .add_loading_state(
             LoadingState::new(GameState::AssetLoading)
-                .load_collection::<ImageAssets>()
+                .load_collection::<ModelAssets>()
                 .continue_to_state(GameState::Matchmaking),
         )
         .init_ggrs_state::<RollbackState>()
@@ -103,8 +112,9 @@ fn main() {
                     start_synctest_session.run_if(synctest_mode),
                 )
                     .run_if(in_state(GameState::Matchmaking)),
-                (camera_follow, update_score_ui, handle_ggrs_events)
-                    .run_if(in_state(GameState::InGame)),
+                camera_follow.run_if(in_state(GameState::InGame)),
+                update_score_ui.run_if(in_state(GameState::InGame)),
+                handle_ggrs_events.run_if(in_state(GameState::InGame)),
             ),
         )
         .add_systems(ReadInputs, read_local_inputs)
@@ -141,16 +151,6 @@ fn main() {
 const MAP_SIZE: i32 = 41;
 const WALL_HEIGHT: f32 = 3.0;
 
-#[derive(AssetCollection, Resource)]
-struct ImageAssets {
-    #[asset(path = "bullet.png")]
-    bullet: Handle<Image>,
-    #[asset(path = "player_1.png")]
-    player_1: Handle<Image>,
-    #[asset(path = "player_2.png")]
-    player_2: Handle<Image>,
-}
-
 fn synctest_mode(args: Res<Args>) -> bool {
     args.synctest
 }
@@ -172,6 +172,7 @@ fn setup(
             ..default()
         })),
         Transform::from_xyz(0.0, 0.0, 0.0),
+        Visibility::default(),
     ));
 
     // Directional light
@@ -228,19 +229,18 @@ fn generate_map(
                 WALL_HEIGHT / 2.,
                 cell_z as f32 + size.z / 2. - MAP_SIZE as f32 / 2.,
             )),
+            Visibility::default(),
         ));
     }
 }
 
 fn spawn_players(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     players: Query<Entity, With<Player>>,
     bullets: Query<Entity, With<Bullet>>,
     scores: Res<Scores>,
     session_seed: Res<SessionSeed>,
-    _images: Res<ImageAssets>,
+    models: Res<ModelAssets>,
 ) {
     info!("Spawning players");
 
@@ -265,35 +265,37 @@ fn spawn_players(
         rng.random_range(-half..half),
     );
 
-    // Player 1 - Blue capsule
+    let initial_dir = -Vec2::X;
+    let forward = Vec3::new(initial_dir.x, 0.0, initial_dir.y).normalize_or_zero();
+    let initial_rotation = if forward != Vec3::ZERO {
+        Quat::from_rotation_arc(Vec3::X, forward)
+    } else {
+        Quat::IDENTITY
+    };
+
+    // Player 1
     commands
         .spawn((
             Player { handle: 0 },
-            Transform::from_translation(p1_pos),
             BulletReady(true),
-            MoveDir(-Vec2::X),
+            MoveDir(initial_dir),
             DistanceTraveled(0.0),
-            Mesh3d(meshes.add(Capsule3d::new(PLAYER_RADIUS, PLAYER_HEIGHT))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.2, 0.4, 0.8),
-                ..default()
-            })),
+            SceneRoot(models.player_1.clone()),
+            Transform::from_translation(p1_pos).with_rotation(initial_rotation),
+            Visibility::default(),
         ))
         .add_rollback();
 
-    // Player 2 - Red capsule
+    // Player 2
     commands
         .spawn((
             Player { handle: 1 },
-            Transform::from_translation(p2_pos),
             BulletReady(true),
-            MoveDir(-Vec2::X),
+            MoveDir(initial_dir),
             DistanceTraveled(0.0),
-            Mesh3d(meshes.add(Capsule3d::new(PLAYER_RADIUS, PLAYER_HEIGHT))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.8, 0.2, 0.2),
-                ..default()
-            })),
+            SceneRoot(models.player_2.clone()),
+            Transform::from_translation(p2_pos).with_rotation(initial_rotation),
+            Visibility::default(),
         ))
         .add_rollback();
 }
@@ -370,7 +372,7 @@ fn start_synctest_session(mut commands: Commands, mut next_state: ResMut<NextSta
         .expect("failed to start session");
 
     commands.insert_resource(bevy_ggrs::Session::SyncTest(ggrs_session));
-    commands.insert_resource(SessionSeed(rng().next_u64()));
+    commands.insert_resource(SessionSeed(rng().random()));
     next_state.set(GameState::InGame);
 }
 
@@ -412,6 +414,12 @@ fn move_players(
         }
 
         move_direction.0 = direction;
+
+        // Set rotation to face movement direction
+        let forward = Vec3::new(direction.x, 0.0, direction.y).normalize_or_zero();
+        if forward != Vec3::ZERO {
+            transform.rotation = Quat::from_rotation_arc(Vec3::X, forward);
+        }
 
         let move_speed = 6.;
         let move_delta = direction * move_speed * time.delta_secs();
@@ -515,7 +523,6 @@ fn fire_bullets(
             commands
                 .spawn((
                     Bullet,
-                    Transform::from_translation(pos).with_rotation(rotation),
                     *move_dir,
                     Mesh3d(meshes.add(Capsule3d::new(BULLET_RADIUS, 0.3))),
                     MeshMaterial3d(materials.add(StandardMaterial {
@@ -523,6 +530,8 @@ fn fire_bullets(
                         emissive: LinearRgba::new(1.0, 1.0, 0.0, 1.0),
                         ..default()
                     })),
+                    Transform::from_translation(pos).with_rotation(rotation),
+                    Visibility::default(),
                 ))
                 .add_rollback();
             bullet_ready.0 = false;
@@ -640,18 +649,23 @@ fn round_end_timeout(
     }
 }
 
-fn update_score_ui(mut contexts: EguiContexts, scores: Res<Scores>) -> Result {
+fn update_score_ui(mut contexts: EguiContexts, scores: Res<Scores>) {
     let Scores(p1_score, p2_score) = *scores;
 
     egui::Area::new("score".into())
         .anchor(Align2::CENTER_TOP, (0., 25.))
-        .show(contexts.ctx_mut()?, |ui| {
+        .show(contexts.ctx_mut().unwrap(), |ui| {
             ui.label(
                 RichText::new(format!("{p1_score} - {p2_score}"))
                     .color(Color32::WHITE)
                     .font(FontId::proportional(72.0)),
             );
         });
+}
 
-    Ok(())
+fn checksum_transform(transform: &Transform) -> u64 {
+    // Simple checksum for transform
+    let pos = transform.translation;
+    let rot = transform.rotation;
+    ((pos.x as u64) ^ (pos.y as u64) ^ (pos.z as u64) ^ (rot.x as u64) ^ (rot.y as u64) ^ (rot.z as u64) ^ (rot.w as u64)) as u64
 }

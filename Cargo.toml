@@ -7,7 +7,7 @@ edition = "2024"
 opt-level = 2
 
 [dependencies]
-bevy = { version = "0.17", features = ["jpeg"] }
+bevy = { version = "0.17", features = ["jpeg", "bevy_gltf"] }
 bevy_ggrs = { version = "0.19", features = ["wasm-bindgen"] }
 bevy_matchbox = { version = "0.13", features = ["ggrs"] }
 bevy_asset_loader = "0.24.0-RC"
