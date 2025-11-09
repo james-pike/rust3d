@@ -1,5 +1,5 @@
 use args::Args;
-use bevy::{camera::ScalingMode, prelude::*};
+use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
 use bevy_egui::{
     EguiContexts, EguiPlugin,
@@ -18,10 +18,6 @@ mod args;
 mod components;
 mod input;
 
-// The first generic parameter, u8, is the input type: 4-directions + fire fits
-// easily in a single byte
-// The second parameter is the address type of peers: Matchbox' WebRtcSocket
-// addresses are called `PeerId`s
 type Config = bevy_ggrs::GgrsConfig<u8, PeerId>;
 
 #[derive(States, Clone, Eq, PartialEq, Debug, Hash, Default)]
@@ -34,10 +30,8 @@ enum GameState {
 
 #[derive(States, Clone, Eq, PartialEq, Debug, Hash, Default)]
 enum RollbackState {
-    /// When the characters running and gunning
     #[default]
     InRound,
-    /// When one character is dead, and we're transitioning to the next round
     RoundEnd,
 }
 
@@ -65,9 +59,7 @@ fn main() {
             DefaultPlugins
                 .set(WindowPlugin {
                     primary_window: Some(Window {
-                        // fill the entire browser window
                         fit_canvas_to_parent: true,
-                        // don't hijack keyboard shortcuts like F5, F6, F12, Ctrl+R etc.
                         prevent_default_event_handling: false,
                         ..default()
                     }),
@@ -94,10 +86,9 @@ fn main() {
         .rollback_component_with_copy::<Wall>()
         .rollback_component_with_copy::<MoveDir>()
         .rollback_component_with_copy::<DistanceTraveled>()
-        .rollback_component_with_clone::<Sprite>()
         .checksum_component::<Transform>(checksum_transform)
         .insert_resource(args)
-        .insert_resource(ClearColor(Color::srgb(0.53, 0.53, 0.53)))
+        .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)))
         .init_resource::<RoundEndTimer>()
         .init_resource::<Scores>()
         .add_systems(
@@ -125,12 +116,6 @@ fn main() {
             RollbackUpdate,
             (
                 move_players,
-                update_player_sprites
-                    .after(move_players)
-                    // both systems operate on the `Sprite` component, but not on the same entities
-                    .ambiguous_with(resolve_wall_collisions)
-                    // both systems operate on the `Sprite` component, but not on the same entities
-                    .ambiguous_with(bullet_wall_collisions),
                 resolve_wall_collisions.after(move_players),
                 reload_bullet,
                 fire_bullets
@@ -154,7 +139,7 @@ fn main() {
 }
 
 const MAP_SIZE: i32 = 41;
-const GRID_WIDTH: f32 = 0.05;
+const WALL_HEIGHT: f32 = 3.0;
 
 #[derive(AssetCollection, Resource)]
 struct ImageAssets {
@@ -174,45 +159,42 @@ fn p2p_mode(args: Res<Args>) -> bool {
     !args.synctest
 }
 
-fn setup(mut commands: Commands) {
-    // Horizontal lines
-    for i in 0..=MAP_SIZE {
-        commands.spawn((
-            Transform::from_translation(Vec3::new(0., i as f32 - MAP_SIZE as f32 / 2., 0.)),
-            Sprite {
-                color: Color::srgb(0.27, 0.27, 0.27),
-                custom_size: Some(Vec2::new(MAP_SIZE as f32, GRID_WIDTH)),
-                ..default()
-            },
-        ));
-    }
-
-    // Vertical lines
-    for i in 0..=MAP_SIZE {
-        commands.spawn((
-            Transform::from_translation(Vec3::new(i as f32 - MAP_SIZE as f32 / 2., 0., 0.)),
-            Sprite {
-                color: Color::srgb(0.27, 0.27, 0.27),
-                custom_size: Some(Vec2::new(GRID_WIDTH, MAP_SIZE as f32)),
-                ..default()
-            },
-        ));
-    }
-
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // Ground plane
     commands.spawn((
-        Camera2d,
-        Projection::Orthographic(OrthographicProjection {
-            scaling_mode: ScalingMode::AutoMax {
-                max_width: 16.0,
-                max_height: 9.0,
-            },
-            ..OrthographicProjection::default_2d()
-        }),
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(MAP_SIZE as f32, MAP_SIZE as f32))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.2, 0.2, 0.2),
+            ..default()
+        })),
+        Transform::from_xyz(0.0, 0.0, 0.0),
+    ));
+
+    // Directional light
+    commands.spawn((
+        DirectionalLight {
+            illuminance: 10000.0,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform::from_xyz(4.0, 8.0, 4.0).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
+
+    // 3D Camera with third-person view
+    commands.spawn((
+        Camera3d::default(),
+        Transform::from_xyz(0.0, 15.0, 15.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
     ));
 }
 
 fn generate_map(
     mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     walls: Query<Entity, With<Wall>>,
     scores: Res<Scores>,
     session_seed: Res<SessionSeed>,
@@ -227,37 +209,38 @@ fn generate_map(
     for _ in 0..20 {
         let max_box_size = MAP_SIZE / 4;
         let width = rng.random_range(1..max_box_size);
-        let height = rng.random_range(1..max_box_size);
+        let depth = rng.random_range(1..max_box_size);
 
         let cell_x = rng.random_range(0..=(MAP_SIZE - width));
-        let cell_y = rng.random_range(0..=(MAP_SIZE - height));
+        let cell_z = rng.random_range(0..=(MAP_SIZE - depth));
 
-        let size = Vec2::new(width as f32, height as f32);
+        let size = Vec3::new(width as f32, WALL_HEIGHT, depth as f32);
 
         commands.spawn((
             Wall,
+            Mesh3d(meshes.add(Cuboid::from_size(size))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.4, 0.4, 0.4),
+                ..default()
+            })),
             Transform::from_translation(Vec3::new(
                 cell_x as f32 + size.x / 2. - MAP_SIZE as f32 / 2.,
-                cell_y as f32 + size.y / 2. - MAP_SIZE as f32 / 2.,
-                10.,
+                WALL_HEIGHT / 2.,
+                cell_z as f32 + size.z / 2. - MAP_SIZE as f32 / 2.,
             )),
-            Sprite {
-                color: Color::srgb(0.27, 0.27, 0.27),
-                custom_size: Some(size),
-                ..default()
-            },
         ));
     }
 }
 
 fn spawn_players(
     mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     players: Query<Entity, With<Player>>,
     bullets: Query<Entity, With<Bullet>>,
     scores: Res<Scores>,
     session_seed: Res<SessionSeed>,
-    images: Res<ImageAssets>,
-    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    _images: Res<ImageAssets>,
 ) {
     info!("Spawning players");
 
@@ -271,48 +254,46 @@ fn spawn_players(
 
     let mut rng = Xoshiro256PlusPlus::seed_from_u64((scores.0 + scores.1) as u64 ^ **session_seed);
     let half = MAP_SIZE as f32 / 2.;
-    let p1_pos = Vec2::new(rng.random_range(-half..half), rng.random_range(-half..half));
-    let p2_pos = Vec2::new(rng.random_range(-half..half), rng.random_range(-half..half));
+    let p1_pos = Vec3::new(
+        rng.random_range(-half..half),
+        PLAYER_HEIGHT / 2.,
+        rng.random_range(-half..half),
+    );
+    let p2_pos = Vec3::new(
+        rng.random_range(-half..half),
+        PLAYER_HEIGHT / 2.,
+        rng.random_range(-half..half),
+    );
 
-    // 8 directional animations per player, up to 6 frames each
-    let layout = TextureAtlasLayout::from_grid(UVec2::splat(22), 6, 8, None, None);
-    let layout = texture_atlas_layouts.add(layout.clone());
-
-    // Player 1
+    // Player 1 - Blue capsule
     commands
         .spawn((
             Player { handle: 0 },
-            Transform::from_translation(p1_pos.extend(100.)),
+            Transform::from_translation(p1_pos),
             BulletReady(true),
             MoveDir(-Vec2::X),
-            Sprite {
-                image: images.player_1.clone(),
-                texture_atlas: Some(TextureAtlas {
-                    layout: layout.clone(),
-                    index: 0,
-                }),
-                custom_size: Some(Vec2::splat(1.4)),
+            DistanceTraveled(0.0),
+            Mesh3d(meshes.add(Capsule3d::new(PLAYER_RADIUS, PLAYER_HEIGHT))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.2, 0.4, 0.8),
                 ..default()
-            },
+            })),
         ))
         .add_rollback();
 
-    // Player 2
+    // Player 2 - Red capsule
     commands
         .spawn((
             Player { handle: 1 },
-            Transform::from_translation(p2_pos.extend(100.)),
+            Transform::from_translation(p2_pos),
             BulletReady(true),
             MoveDir(-Vec2::X),
-            Sprite {
-                image: images.player_2.clone(),
-                texture_atlas: Some(TextureAtlas {
-                    layout: layout.clone(),
-                    index: 0,
-                }),
-                custom_size: Some(Vec2::splat(1.4)),
+            DistanceTraveled(0.0),
+            Mesh3d(meshes.add(Capsule3d::new(PLAYER_RADIUS, PLAYER_HEIGHT))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.8, 0.2, 0.2),
                 ..default()
-            },
+            })),
         ))
         .add_rollback();
 }
@@ -330,21 +311,19 @@ fn wait_for_players(
     args: Res<Args>,
 ) {
     if socket.get_channel(0).is_err() {
-        return; // we've already started
+        return;
     }
 
-    // Check for new connections
     socket.update_peers();
     let players = socket.players();
 
     let num_players = 2;
     if players.len() < num_players {
-        return; // wait for more players
+        return;
     }
 
     info!("All peers have joined, going in-game");
 
-    // determine the seed
     let id = socket.id().expect("no peer id assigned").0.as_u64_pair();
     let mut seed = id.0 ^ id.1;
     for peer in socket.connected_peers() {
@@ -353,7 +332,6 @@ fn wait_for_players(
     }
     commands.insert_resource(SessionSeed(seed));
 
-    // create a GGRS P2P session
     let mut session_builder = ggrs::SessionBuilder::<Config>::new()
         .with_num_players(num_players)
         .with_desync_detection_mode(DesyncDetection::On { interval: 1 })
@@ -365,10 +343,8 @@ fn wait_for_players(
             .expect("failed to add player");
     }
 
-    // move the channel out of the socket (required because GGRS takes ownership of it)
     let socket = socket.take_channel(0).unwrap();
 
-    // start the GGRS session
     let ggrs_session = session_builder
         .start_p2p_session(socket)
         .expect("failed to start session");
@@ -440,12 +416,15 @@ fn move_players(
         let move_speed = 6.;
         let move_delta = direction * move_speed * time.delta_secs();
 
-        let old_pos = transform.translation.xy();
-        let limit = Vec2::splat(MAP_SIZE as f32 / 2. - 0.5);
-        let new_pos = (old_pos + move_delta).clamp(-limit, limit);
+        let old_pos = transform.translation;
+        let limit = MAP_SIZE as f32 / 2. - 0.5;
+        
+        // Move in XZ plane (horizontal plane in 3D)
+        let new_x = (old_pos.x + move_delta.x).clamp(-limit, limit);
+        let new_z = (old_pos.z + move_delta.y).clamp(-limit, limit);
 
-        transform.translation.x = new_pos.x;
-        transform.translation.y = new_pos.y;
+        transform.translation.x = new_x;
+        transform.translation.z = new_z;
 
         distance.0 += move_delta.length();
     }
@@ -453,33 +432,34 @@ fn move_players(
 
 fn resolve_wall_collisions(
     mut players: Query<&mut Transform, With<Player>>,
-    walls: Query<(&Transform, &Sprite), (With<Wall>, Without<Player>)>,
+    walls: Query<&Transform, (With<Wall>, Without<Player>)>,
 ) {
     for mut player_transform in &mut players {
-        for (wall_transform, wall_sprite) in &walls {
-            let wall_size = wall_sprite.custom_size.expect("wall doesn't have a size");
-            let wall_pos = wall_transform.translation.xy();
-            let player_pos = player_transform.translation.xy();
+        for wall_transform in &walls {
+            let wall_scale = wall_transform.scale;
+            let wall_size = Vec3::new(wall_scale.x, WALL_HEIGHT, wall_scale.z);
+            let wall_pos = wall_transform.translation;
+            let player_pos = player_transform.translation;
 
-            let wall_to_player = player_pos - wall_pos;
-            // exploit the symmetry of the problem,
-            // treat things as if they are in the first quadrant
+            // Work in XZ plane
+            let wall_pos_xz = Vec2::new(wall_pos.x, wall_pos.z);
+            let player_pos_xz = Vec2::new(player_pos.x, player_pos.z);
+            let wall_size_xz = Vec2::new(wall_size.x, wall_size.z);
+
+            let wall_to_player = player_pos_xz - wall_pos_xz;
             let wall_to_player_abs = wall_to_player.abs();
-            let wall_corner_to_player_center = wall_to_player_abs - wall_size / 2.;
+            let wall_corner_to_player_center = wall_to_player_abs - wall_size_xz / 2.;
 
             let corner_to_corner = wall_corner_to_player_center - Vec2::splat(PLAYER_RADIUS);
 
             if corner_to_corner.x > 0. || corner_to_corner.y > 0. {
-                // no collision
                 continue;
             }
 
             if corner_to_corner.x > corner_to_corner.y {
-                // least overlap on x axis
                 player_transform.translation.x -= wall_to_player.x.signum() * corner_to_corner.x;
             } else {
-                // least overlap on y axis
-                player_transform.translation.y -= wall_to_player.y.signum() * corner_to_corner.y;
+                player_transform.translation.z -= wall_to_player.y.signum() * corner_to_corner.y;
             }
         }
     }
@@ -499,37 +479,50 @@ fn reload_bullet(
 
 fn fire_bullets(
     mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     inputs: Res<PlayerInputs<Config>>,
-    images: Res<ImageAssets>,
     mut players: Query<(&Transform, &Player, &mut BulletReady, &MoveDir)>,
 ) {
     for (transform, player, mut bullet_ready, move_dir) in &mut players {
         let (input, _) = inputs[player.handle];
         if fire(input) && bullet_ready.0 {
-            let player_pos = transform.translation.xy();
+            let player_pos = transform.translation;
+            
+            // Muzzle offset in 3D space
             let muzzle_offset = match move_dir.octant() {
-                0 => Vec2::new(0.5, 0.0),    // right
-                1 => Vec2::new(0.5, 0.25),   // up-right
-                2 => Vec2::new(0.25, 0.5),   // up
-                3 => Vec2::new(-0.4, 0.3),   // up-left
-                4 => Vec2::new(-0.5, 0.0),   // left
-                5 => Vec2::new(-0.4, -0.25), // down-left
-                6 => Vec2::new(-0.25, -0.5), // down
-                7 => Vec2::new(0.25, -0.25), // down-right
+                0 => Vec3::new(0.5, 0.0, 0.0),
+                1 => Vec3::new(0.5, 0.0, 0.25),
+                2 => Vec3::new(0.25, 0.0, 0.5),
+                3 => Vec3::new(-0.4, 0.0, 0.3),
+                4 => Vec3::new(-0.5, 0.0, 0.0),
+                5 => Vec3::new(-0.4, 0.0, -0.25),
+                6 => Vec3::new(-0.25, 0.0, -0.5),
+                7 => Vec3::new(0.25, 0.0, -0.25),
                 _ => unreachable!(),
             };
+            
             let pos = player_pos + muzzle_offset;
+            
+            // Calculate rotation to face direction
+            let forward = Vec3::new(move_dir.0.x, 0.0, move_dir.0.y).normalize_or_zero();
+            let rotation = if forward != Vec3::ZERO {
+                Quat::from_rotation_arc(Vec3::X, forward)
+            } else {
+                Quat::IDENTITY
+            };
+            
             commands
                 .spawn((
                     Bullet,
-                    Transform::from_translation(pos.extend(200.))
-                        .with_rotation(Quat::from_rotation_arc_2d(Vec2::X, move_dir.0)),
+                    Transform::from_translation(pos).with_rotation(rotation),
                     *move_dir,
-                    Sprite {
-                        image: images.bullet.clone(),
-                        custom_size: Some(Vec2::new(0.3, 0.1)),
+                    Mesh3d(meshes.add(Capsule3d::new(BULLET_RADIUS, 0.3))),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: Color::srgb(1.0, 1.0, 0.0),
+                        emissive: LinearRgba::new(1.0, 1.0, 0.0, 1.0),
                         ..default()
-                    },
+                    })),
                 ))
                 .add_rollback();
             bullet_ready.0 = false;
@@ -540,35 +533,40 @@ fn fire_bullets(
 fn move_bullet(mut bullets: Query<(&mut Transform, &MoveDir), With<Bullet>>, time: Res<Time>) {
     for (mut transform, dir) in &mut bullets {
         let speed = 20.;
-        let delta = dir.0 * speed * time.delta_secs();
-        transform.translation += delta.extend(0.);
+        let delta = Vec3::new(dir.0.x, 0.0, dir.0.y) * speed * time.delta_secs();
+        transform.translation += delta;
     }
 }
 
 fn bullet_wall_collisions(
     mut commands: Commands,
     bullets: Query<(Entity, &Transform), With<Bullet>>,
-    walls: Query<(&Transform, &Sprite), (With<Wall>, Without<Bullet>)>,
+    walls: Query<&Transform, (With<Wall>, Without<Bullet>)>,
 ) {
     let map_limit = MAP_SIZE as f32 / 2.;
 
     for (bullet_entity, bullet_transform) in &bullets {
-        let bullet_pos = bullet_transform.translation.xy();
+        let bullet_pos = bullet_transform.translation;
 
-        if bullet_pos.x.abs() > map_limit || bullet_pos.y.abs() > map_limit {
+        if bullet_pos.x.abs() > map_limit || bullet_pos.z.abs() > map_limit {
             commands.entity(bullet_entity).despawn();
             continue;
         }
 
-        for (wall_transform, wall_sprite) in &walls {
-            let wall_size = wall_sprite.custom_size.expect("wall doesn't have a size");
-            let wall_pos = wall_transform.translation.xy();
-            let center_to_center = wall_pos - bullet_pos;
-            // exploit symmetry
+        for wall_transform in &walls {
+            let wall_scale = wall_transform.scale;
+            let wall_size = Vec3::new(wall_scale.x, WALL_HEIGHT, wall_scale.z);
+            let wall_pos = wall_transform.translation;
+            
+            let wall_pos_xz = Vec2::new(wall_pos.x, wall_pos.z);
+            let bullet_pos_xz = Vec2::new(bullet_pos.x, bullet_pos.z);
+            let wall_size_xz = Vec2::new(wall_size.x, wall_size.z);
+            
+            let center_to_center = wall_pos_xz - bullet_pos_xz;
             let center_to_center = center_to_center.abs();
-            let corner_to_center = center_to_center - wall_size / 2.;
+            let corner_to_center = center_to_center - wall_size_xz / 2.;
+            
             if corner_to_center.x < 0. && corner_to_center.y < 0. {
-                // we're inside a wall
                 commands.entity(bullet_entity).despawn();
                 break;
             }
@@ -576,10 +574,9 @@ fn bullet_wall_collisions(
     }
 }
 
-const PLAYER_WIDTH: f32 = 0.5;
 const PLAYER_HEIGHT: f32 = 1.0;
-const PLAYER_RADIUS: f32 = 0.5;
-const BULLET_RADIUS: f32 = 0.025;
+const PLAYER_RADIUS: f32 = 0.3;
+const BULLET_RADIUS: f32 = 0.05;
 
 fn kill_players(
     mut commands: Commands,
@@ -590,15 +587,12 @@ fn kill_players(
 ) {
     for (player_entity, player_transform, player) in &players {
         for bullet_transform in &bullets {
-            let player_pos = player_transform.translation.xy();
-            let bullet_pos = bullet_transform.translation.xy();
+            let player_pos = player_transform.translation;
+            let bullet_pos = bullet_transform.translation;
 
-            // distance between player center and bullet center on each axis, individually
-            let manhattan_distance = (player_pos - bullet_pos).abs();
+            let distance = player_pos.distance(bullet_pos);
 
-            if manhattan_distance.x < PLAYER_WIDTH / 2. + BULLET_RADIUS
-                && manhattan_distance.y < PLAYER_HEIGHT / 2. + BULLET_RADIUS
-            {
+            if distance < PLAYER_RADIUS + BULLET_RADIUS {
                 commands.entity(player_entity).despawn();
                 next_state.set(RollbackState::RoundEnd);
 
@@ -619,16 +613,17 @@ fn camera_follow(
     mut cameras: Query<&mut Transform, (With<Camera>, Without<Player>)>,
 ) {
     for (player, player_transform) in &players {
-        // only follow the local player
         if !local_players.0.contains(&player.handle) {
             continue;
         }
 
         let pos = player_transform.translation;
 
-        for mut transform in &mut cameras {
-            transform.translation.x = pos.x;
-            transform.translation.y = pos.y;
+        for mut camera_transform in &mut cameras {
+            // Follow player from behind and above
+            let offset = Vec3::new(0.0, 15.0, 15.0);
+            camera_transform.translation = pos + offset;
+            camera_transform.look_at(pos, Vec3::Y);
         }
     }
 }
@@ -653,43 +648,10 @@ fn update_score_ui(mut contexts: EguiContexts, scores: Res<Scores>) -> Result {
         .show(contexts.ctx_mut()?, |ui| {
             ui.label(
                 RichText::new(format!("{p1_score} - {p2_score}"))
-                    .color(Color32::BLACK)
+                    .color(Color32::WHITE)
                     .font(FontId::proportional(72.0)),
             );
         });
 
     Ok(())
-}
-
-fn update_player_sprites(
-    mut players: Query<(&mut Sprite, &MoveDir, &DistanceTraveled), With<Player>>,
-) {
-    for (mut sprite, move_dir, distance) in &mut players {
-        if let Some(atlas) = sprite.texture_atlas.as_mut() {
-            // 8 directional animations, each 45 degrees apart
-            let octant = move_dir.octant();
-
-            // each row has 6 frames, so we multiply the octant index by 6
-            // to get the index of the first frame in that row in the texture atlas.
-            let anim_start = octant * 6;
-
-            // get animation length based on octant (row in the sprite sheet)
-            let anim_len = match octant {
-                0 => 5,
-                1 => 5,
-                2 => 4,
-                3 => 5,
-                4 => 5,
-                5 => 4,
-                6 => 4,
-                7 => 5,
-                _ => unreachable!(),
-            };
-
-            let anim_speed = 4.0; // frames per units of distance traveled
-            let current_frame = (distance.0 * anim_speed) as usize % anim_len;
-
-            atlas.index = anim_start + current_frame;
-        }
-    }
 }
