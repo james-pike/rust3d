@@ -2,11 +2,15 @@ use crate::Config;
 use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_ggrs::{LocalInputs, LocalPlayers};
 
+// Input bit flags
 const INPUT_UP: u8 = 1 << 0;
 const INPUT_DOWN: u8 = 1 << 1;
 const INPUT_LEFT: u8 = 1 << 2;
 const INPUT_RIGHT: u8 = 1 << 3;
-const INPUT_FIRE: u8 = 1 << 4;
+const INPUT_FIRE: u8 = 1 << 4;      // Used for both fire and attack
+const INPUT_DODGE: u8 = 1 << 5;     // Dodge/Roll
+const INPUT_BLOCK: u8 = 1 << 6;     // Block
+const INPUT_SPRINT: u8 = 1 << 7;    // Sprint (optional)
 
 pub fn read_local_inputs(
     mut commands: Commands,
@@ -18,6 +22,7 @@ pub fn read_local_inputs(
     for handle in &local_players.0 {
         let mut input = 0u8;
 
+        // Movement inputs
         if keys.any_pressed([KeyCode::ArrowUp, KeyCode::KeyW]) {
             input |= INPUT_UP;
         }
@@ -30,8 +35,19 @@ pub fn read_local_inputs(
         if keys.any_pressed([KeyCode::ArrowRight, KeyCode::KeyD]) {
             input |= INPUT_RIGHT;
         }
+        
+        // Combat inputs
         if keys.any_pressed([KeyCode::Space, KeyCode::Enter]) {
             input |= INPUT_FIRE;
+        }
+        if keys.pressed(KeyCode::ShiftLeft) {
+            input |= INPUT_DODGE;
+        }
+        if keys.pressed(KeyCode::ControlLeft) {
+            input |= INPUT_BLOCK;
+        }
+        if keys.pressed(KeyCode::ShiftRight) {
+            input |= INPUT_SPRINT;
         }
 
         local_inputs.insert(*handle, input);
@@ -40,6 +56,7 @@ pub fn read_local_inputs(
     commands.insert_resource(LocalInputs::<Config>(local_inputs));
 }
 
+// Helper functions
 pub fn direction(input: u8) -> Vec2 {
     let mut direction = Vec2::ZERO;
     if input & INPUT_UP != 0 {
@@ -59,4 +76,20 @@ pub fn direction(input: u8) -> Vec2 {
 
 pub fn fire(input: u8) -> bool {
     input & INPUT_FIRE != 0
+}
+
+pub fn attack(input: u8) -> bool {
+    input & INPUT_FIRE != 0  // Same as fire
+}
+
+pub fn dodge(input: u8) -> bool {
+    input & INPUT_DODGE != 0
+}
+
+pub fn block(input: u8) -> bool {
+    input & INPUT_BLOCK != 0
+}
+
+pub fn sprint(input: u8) -> bool {
+    input & INPUT_SPRINT != 0
 }
