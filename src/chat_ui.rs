@@ -1,0 +1,174 @@
+// src/chat_ui.rs - FIXED (better visibility and debugging)
+use bevy::prelude::*;
+use crate::chat::{ChatMessages, ChatInput};
+
+pub struct ChatUIPlugin;
+
+impl Plugin for ChatUIPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, setup_chat_ui)
+            .add_systems(Update, (update_chat_ui, debug_chat_state));
+    }
+}
+
+#[derive(Component)]
+struct ChatMessagesDisplay;
+
+#[derive(Component)]
+struct ChatInputDisplay;
+
+#[derive(Component)]
+struct ChatMessageText;
+
+#[derive(Component)]
+struct ChatStatusIndicator;
+
+fn setup_chat_ui(mut commands: Commands) {
+    // Root UI node
+    commands.spawn((
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            flex_direction: FlexDirection::Column,
+            justify_content: JustifyContent::End,
+            padding: UiRect::all(Val::Px(10.0)),
+            ..default()
+        },
+        BackgroundColor(Color::NONE),
+    ))
+    .with_children(|parent| {
+        // Status indicator (top-left corner)
+        parent.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(10.0),
+                top: Val::Px(10.0),
+                padding: UiRect::all(Val::Px(8.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.5, 0.0, 0.8)),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("Chat: Press Enter"),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                ChatStatusIndicator,
+            ));
+        });
+
+        // Chat messages container
+        parent.spawn((
+            Node {
+                width: Val::Px(400.0),
+                height: Val::Px(200.0),
+                flex_direction: FlexDirection::Column,
+                overflow: Overflow::clip(),
+                padding: UiRect::all(Val::Px(8.0)),
+                border: UiRect::all(Val::Px(2.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
+            BorderColor::all(Color::srgb(0.3, 0.3, 0.3)),
+            ChatMessagesDisplay,
+        ));
+
+        // Chat input box
+        parent.spawn((
+            Node {
+                width: Val::Px(400.0),
+                height: Val::Px(40.0),
+                padding: UiRect::all(Val::Px(8.0)),
+                margin: UiRect::top(Val::Px(5.0)),
+                border: UiRect::all(Val::Px(2.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.9)),
+            BorderColor::all(Color::srgb(0.3, 0.3, 0.3)),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("Press Enter to chat..."),
+                TextFont {
+                    font_size: 16.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.7, 0.7, 0.7)),
+                ChatInputDisplay,
+            ));
+        });
+    });
+}
+
+fn debug_chat_state(chat_input: Res<ChatInput>) {
+    if chat_input.is_changed() {
+        info!(
+            "Chat state - Focused: {}, Text: '{}'",
+            chat_input.is_focused,
+            chat_input.current_text
+        );
+    }
+}
+
+fn update_chat_ui(
+    chat_messages: Res<ChatMessages>,
+    chat_input: Res<ChatInput>,
+    mut input_query: Query<(&mut Text, &mut TextColor), With<ChatInputDisplay>>,
+    mut status_query: Query<&mut Text, (With<ChatStatusIndicator>, Without<ChatInputDisplay>)>,
+    mut commands: Commands,
+    messages_display_query: Query<Entity, With<ChatMessagesDisplay>>,
+    existing_messages: Query<Entity, With<ChatMessageText>>,
+) {
+    // Update status indicator
+    if let Ok(mut status_text) = status_query.single_mut() {
+        **status_text = if chat_input.is_focused {
+            "Chat: ACTIVE (ESC to close)".to_string()
+        } else {
+            "Chat: Press Enter".to_string()
+        };
+    }
+
+    // Update chat input display
+    if let Ok((mut text, mut color)) = input_query.single_mut() {
+        if chat_input.is_focused {
+            **text = format!("> {}", chat_input.current_text);
+            *color = TextColor(Color::WHITE);
+        } else {
+            **text = "Press Enter to chat...".to_string();
+            *color = TextColor(Color::srgb(0.7, 0.7, 0.7));
+        }
+    }
+
+    // Update chat messages
+    if chat_messages.is_changed() {
+        if let Ok(entity) = messages_display_query.single() {
+            // Despawn all existing message entities
+            for msg_entity in &existing_messages {
+                commands.entity(msg_entity).despawn();
+            }
+            
+            commands.entity(entity).with_children(|parent| {
+                // Show last 8 messages
+                let start = chat_messages.messages.len().saturating_sub(8);
+                for msg in &chat_messages.messages[start..] {
+                    parent.spawn((
+                        Text::new(format!("{}: {}", msg.author, msg.text)),
+                        TextFont {
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor(Color::srgb(0.9, 0.9, 1.0)),
+                        Node {
+                            margin: UiRect::bottom(Val::Px(4.0)),
+                            ..default()
+                        },
+                        ChatMessageText,
+                    ));
+                }
+            });
+        }
+    }
+}

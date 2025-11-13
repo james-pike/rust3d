@@ -1,4 +1,4 @@
-// main.rs (updated)
+// main.rs (complete and corrected)
 use args::Args;
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
@@ -9,7 +9,12 @@ use bevy_roll_safe::prelude::*;
 use clap::Parser;
 use components::*;
 use input::*;
-use constants::*;
+
+mod chat;
+mod chat_ui;
+
+use chat::ChatPlugin;
+use chat_ui::ChatUIPlugin;
 
 mod args;
 mod components;
@@ -44,6 +49,8 @@ fn main() {
     eprintln!("{args:?}");
 
     App::new()
+        .add_plugins(ChatPlugin)
+        .add_plugins(ChatUIPlugin)
         .add_plugins((
             DefaultPlugins
                 .set(WindowPlugin {
@@ -80,9 +87,14 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)))
         .init_resource::<resources::RoundEndTimer>()
         .init_resource::<resources::Scores>()
+        // COMBINED: Setup systems for matchmaking state
         .add_systems(
             OnEnter(states::GameState::Matchmaking),
-            (setup::setup, matchmaking::start_matchbox_socket.run_if(matchmaking::p2p_mode)),
+            (
+                setup::setup,
+                matchmaking::start_matchbox_socket.run_if(matchmaking::p2p_mode),
+                chat::setup_chat_socket.run_if(matchmaking::p2p_mode),
+            ),
         )
         .add_systems(
             Update,

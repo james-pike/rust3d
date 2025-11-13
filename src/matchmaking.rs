@@ -1,4 +1,4 @@
-// matchmaking.rs
+// matchmaking.rs - CORRECT VERSION (no dual channels, keep original)
 use bevy::prelude::*;
 use bevy_ggrs::{ggrs::{DesyncDetection, PlayerType}, *};
 use bevy_matchbox::prelude::*;
@@ -68,11 +68,15 @@ pub fn wait_for_players(
     next_state.set(GameState::InGame);
 }
 
-pub fn start_synctest_session(mut commands: Commands, mut next_state: ResMut<NextState<GameState>>) {
+pub fn start_synctest_session(
+    mut commands: Commands,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
     info!("Starting synctest session");
     let num_players = 2;
 
-    let mut session_builder = ggrs::SessionBuilder::<Config>::new().with_num_players(num_players);
+    let mut session_builder = ggrs::SessionBuilder::<Config>::new()
+        .with_num_players(num_players);
 
     for i in 0..num_players {
         session_builder = session_builder
