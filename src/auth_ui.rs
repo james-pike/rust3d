@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};  // FIXED: Import schedule
+use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
 use crate::states::GameState;
 use crate::UiReady;
 use crate::auth::{connect_kasware, is_kasware_installed, WalletInfo};
@@ -12,6 +12,10 @@ pub struct LoginUI {
     pub wallet_address: Option<String>,
 }
 
+// NEW: Cache Kasware detection (avoids per-frame JS call)
+#[derive(Resource, Default)]
+pub struct KaswareDetected(pub bool);
+
 #[derive(Message)]
 pub struct WalletConnectEvent;
 
@@ -20,13 +24,19 @@ pub struct AuthUIPlugin;
 impl Plugin for AuthUIPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LoginUI>()
+            .init_resource::<KaswareDetected>()  // NEW: Init cache
             .add_message::<WalletConnectEvent>()
             .add_systems(
                 OnEnter(GameState::WalletAuth),
-                (setup_wallet_display, setup_camera, log_wallet_auth_entry)
+                (
+                    setup_wallet_display,
+                    setup_camera,
+                    log_wallet_auth_entry,
+                    cache_kasware_detection,  // NEW: Cache on entry
+                ),
             )
             .add_systems(
-                EguiPrimaryContextPass,  // FIXED: Use dedicated Egui schedule (post-init)
+                EguiPrimaryContextPass,
                 (
                     draw_login_ui,
                     handle_wallet_connect_event,
@@ -36,10 +46,21 @@ impl Plugin for AuthUIPlugin {
                 .run_if(in_state(GameState::WalletAuth)),
             )
             .add_systems(
-                EguiPrimaryContextPass,  // FIXED: Same for InGame
+                EguiPrimaryContextPass,
                 update_wallet_display
                     .run_if(in_state(GameState::InGame)),
             );
+    }
+}
+
+// NEW: Cache Kasware detection once on state entry
+fn cache_kasware_detection(mut kasware: ResMut<KaswareDetected>) {
+    let detected = is_kasware_installed();
+    kasware.0 = detected;
+    if detected {
+        info!("✅ Kasware wallet detected (cached)");  // Log once
+    } else {
+        warn!("⚠️ Kasware wallet not detected");
     }
 }
 
@@ -69,13 +90,15 @@ fn draw_login_ui(
     mut contexts: EguiContexts,
     mut login_ui: ResMut<LoginUI>,
     ui_ready: Res<UiReady>,
-    mut connect_event: MessageWriter<WalletConnectEvent>,  // FIXED: MessageWriter
+    kasware: Res<KaswareDetected>,  // NEW: Use cache
+    mut connect_event: MessageWriter<WalletConnectEvent>,
 ) {
     if !ui_ready.0 {
         info!("⏳ UI not ready yet, skipping draw");
         return;
     }
-    info!("✅ draw_login_ui: UiReady true, proceeding to draw");
+    // CHANGED: Demote to debug! (less spam)
+    debug!("✅ draw_login_ui: UiReady true, proceeding to draw");
 
     if !login_ui.show_login {
         return;
@@ -83,7 +106,7 @@ fn draw_login_ui(
 
     let ctx = contexts.ctx_mut().expect("Egui context not found");
 
-    info!("🎨 Drawing login UI");
+    debug!("🎨 Drawing login UI");  // CHANGED: debug!
     
     egui::Window::new("wallet_connect")
         .title_bar(false)
@@ -106,10 +129,7 @@ fn draw_login_ui(
                 );
                 ui.add_space(30.0);
 
-                // Check if Kasware is installed
-                let kasware_available = is_kasware_installed();
-                
-                if !kasware_available {
+                if !kasware.0 {  // NEW: Use cache
                     ui.colored_label(
                         egui::Color32::from_rgb(255, 100, 100),
                         "⚠️ Kasware wallet not detected"
@@ -144,7 +164,7 @@ fn draw_login_ui(
 
                     if response.clicked() {
                         info!("🔘 Connect button clicked!");
-                        connect_event.write(WalletConnectEvent);  // FIXED: Use write(), not send()
+                        connect_event.write(WalletConnectEvent);
                         login_ui.connecting = true;
                         login_ui.error_message = None;
                     }
@@ -200,12 +220,12 @@ pub fn update_wallet_display(
 }
 
 fn handle_wallet_connect_event(
-    mut events: MessageReader<WalletConnectEvent>,  // FIXED: MessageReader
+    mut events: MessageReader<WalletConnectEvent>,
     mut login_ui: ResMut<LoginUI>,
     mut next_state: ResMut<NextState<GameState>>,
     mut commands: Commands,
 ) {
-    for _ in events.read() {  // FIXED: .read() on MessageReader
+    for _ in events.read() {
         info!("📨 Processing wallet connect event");
         
         #[cfg(target_arch = "wasm32")]

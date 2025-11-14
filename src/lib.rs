@@ -116,18 +116,13 @@ fn run_app() {
         .init_resource::<UiReady>()
         // REMOVED: OnEnter(GameState::WalletAuth) - handled by AuthUIPlugin
      
-        // FIXED: Flip UiReady after first frame (runs ONCE when false)
+        // Flip UiReady after first frame (runs ONCE when false)
         .add_systems(
             Update,
             set_ui_ready
-                .run_if(resource_equals(UiReady(false))),  // CHANGED: Now runs when false
+                .run_if(resource_equals(UiReady(false))),
         )
-        // NEW: Fallback - Force UiReady true after 5 frames (safety net)
-        .add_systems(
-            Update,
-            force_ui_ready_after_delay
-                .run_if(in_state(GameState::WalletAuth)),
-        )
+        // REMOVED: Fallback system (unneeded - set_ui_ready works)
         // Matchmaking entry
         .add_systems(
             OnEnter(states::GameState::Matchmaking),
@@ -209,30 +204,10 @@ fn run_app() {
         .run();
 }
 
-// FIXED: System to enable UI after first frame (now runs correctly)
+// System to enable UI after first frame (runs correctly)
 fn set_ui_ready(mut ui_ready: ResMut<UiReady>) {
     ui_ready.0 = true;
     info!("✅ UiReady set to true - Egui should now draw");
-}
-
-// NEW: Fallback safety net - Force UiReady after 5 frames in WalletAuth
-#[derive(Resource, Default)]
-struct UiDelayTimer(pub Timer);
-
-fn force_ui_ready_after_delay(
-    mut commands: Commands,
-    mut timer: Local<UiDelayTimer>,
-    time: Res<Time>,
-    ui_ready: Res<UiReady>,
-) {
-    if ui_ready.0 {
-        return;  // Already ready
-    }
-    timer.0.tick(time.delta());
-    if timer.0.is_finished() {  // FIXED: Deprecated finished() -> is_finished()
-        commands.insert_resource(UiReady(true));
-        error!("⚠️ Fallback: Forced UiReady true after delay - check set_ui_ready condition!");
-    }
 }
 
 fn transition_to_asset_loading(mut next_state: ResMut<NextState<states::GameState>>) {
