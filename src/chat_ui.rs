@@ -1,13 +1,34 @@
 // src/chat_ui.rs - FIXED (better visibility and debugging)
 use bevy::prelude::*;
+use crate::states::GameState;  // <-- Added: Import for state guards
 use crate::chat::{ChatMessages, ChatInput};
 
 pub struct ChatUIPlugin;
 
 impl Plugin for ChatUIPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_chat_ui)
-            .add_systems(Update, (update_chat_ui, debug_chat_state));
+        app
+            // Setup UI on Matchmaking enter
+            .add_systems(
+                OnEnter(GameState::Matchmaking),
+                setup_chat_ui,
+            )
+            // Update and debug in PostUpdate, but ONLY in game states
+            .add_systems(
+                PostUpdate,
+                (
+                    update_chat_ui
+                        .run_if(
+                            in_state(GameState::Matchmaking)
+                                .or(in_state(GameState::InGame))
+                        ),  // <-- Guard: No draw in WalletAuth/AssetLoading
+                    debug_chat_state
+                        .run_if(
+                            in_state(GameState::Matchmaking)
+                                .or(in_state(GameState::InGame))
+                        ),  // <-- Guard: No logs in early states
+                ),
+            );
     }
 }
 
@@ -24,6 +45,7 @@ struct ChatMessageText;
 struct ChatStatusIndicator;
 
 fn setup_chat_ui(mut commands: Commands) {
+    info!("Setting up chat UI");  // <-- Debug: Confirm enter
     // Root UI node
     commands.spawn((
         Node {

@@ -25,6 +25,8 @@ mod chat;
 mod chat_ui;
 mod auth;
 mod auth_ui;
+mod inventory_system;  // NEW
+mod hud_system;        // NEW
 
 use args::Args;
 use bevy_asset_loader::prelude::*;
@@ -35,10 +37,15 @@ use bevy_roll_safe::prelude::*;
 use clap::Parser;
 use components::*;
 use input::*;
+
+// Define UiReady resource here for simplicity (or move to resources.rs) - made pub for cross-module access
+#[derive(Resource, Default, PartialEq)]
+pub struct UiReady(pub bool);
+
 use chat::ChatPlugin;
 use chat_ui::ChatUIPlugin;
 use auth_ui::AuthUIPlugin;
-use states::GameState;  // Added: Import for explicit initial state
+use states::GameState;
 
 type Config = bevy_ggrs::GgrsConfig<u8, PeerId>;
 
@@ -60,9 +67,7 @@ fn run_app() {
     eprintln!("{args:?}");
 
     App::new()
-        .add_plugins(ChatPlugin)
-        .add_plugins(ChatUIPlugin)
-        .add_plugins(AuthUIPlugin)
+        // Core plugins first
         .add_plugins((
             DefaultPlugins
                 .set(WindowPlugin {
@@ -78,13 +83,20 @@ fn run_app() {
             RollbackSchedulePlugin::new_ggrs(),
             EguiPlugin::default(),
         ))
-        .init_state::<GameState>()  // Fixed: init_state::<S>() takes no arg; sets up state machine
-        .insert_state(GameState::WalletAuth)  // Added: Set initial state to WalletAuth
+        // Custom plugins
+        .add_plugins(ChatPlugin)
+        .add_plugins(ChatUIPlugin)
+        .add_plugins(AuthUIPlugin)
+        // State machine
+        .init_state::<GameState>()
+        .insert_state(GameState::WalletAuth)
+        // Loading state
         .add_loading_state(
             LoadingState::new(states::GameState::AssetLoading)
                 .load_collection::<ModelAssets>()
                 .continue_to_state(states::GameState::Matchmaking),
         )
+        // GGRS rollback setup
         .init_ggrs_state::<states::RollbackState>()
         .rollback_resource_with_clone::<resources::RoundEndTimer>()
         .rollback_resource_with_copy::<resources::Scores>()
@@ -96,18 +108,27 @@ fn run_app() {
         .rollback_component_with_copy::<MoveDir>()
         .rollback_component_with_copy::<DistanceTraveled>()
         .checksum_component::<Transform>(utils::checksum_transform)
+        // Resources
         .insert_resource(args)
         .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)))
         .init_resource::<resources::RoundEndTimer>()
         .init_resource::<resources::Scores>()
+        .init_resource::<UiReady>()
+        // REMOVED: OnEnter(GameState::WalletAuth) - handled by AuthUIPlugin
+     
+        // FIXED: Flip UiReady after first frame (runs ONCE when false)
         .add_systems(
-            OnExit(states::GameState::WalletAuth),
-            transition_to_asset_loading,
+            Update,
+            set_ui_ready
+                .run_if(resource_equals(UiReady(false))),  // CHANGED: Now runs when false
         )
+        // NEW: Fallback - Force UiReady true after 5 frames (safety net)
         .add_systems(
-            OnEnter(states::GameState::InGame),
-            auth_ui::setup_wallet_display,
+            Update,
+            force_ui_ready_after_delay
+                .run_if(in_state(GameState::WalletAuth)),
         )
+        // Matchmaking entry
         .add_systems(
             OnEnter(states::GameState::Matchmaking),
             (
@@ -116,6 +137,15 @@ fn run_app() {
                 chat::setup_chat_socket.run_if(matchmaking::p2p_mode),
             ),
         )
+        // NEW: Inventory & HUD setup when entering InGame state
+        .add_systems(
+            OnEnter(states::GameState::InGame),
+            (
+                inventory_system::setup_inventory_system,
+                hud_system::setup_player_vitals,
+            ),
+        )
+        // Update systems
         .add_systems(
             Update,
             (
@@ -128,13 +158,31 @@ fn run_app() {
                 ui::update_score_ui.run_if(in_state(states::GameState::InGame)),
                 auth_ui::update_wallet_display.run_if(in_state(states::GameState::InGame)),
                 networking::handle_ggrs_events.run_if(in_state(states::GameState::InGame)),
+                // NEW: Inventory systems during gameplay
+                (
+                    inventory_system::handle_inventory_input,
+                    inventory_system::animate_inventory_drawer,
+                    inventory_system::update_texture_cache,
+                    inventory_system::inventory_ui,
+                    inventory_system::attach_to_bones,
+                )
+                    .run_if(in_state(states::GameState::InGame)),
+                // NEW: HUD systems during gameplay
+                (
+                    hud_system::render_diablo_hud,
+                    hud_system::simulate_vitals_changes,
+                )
+                    .run_if(in_state(states::GameState::InGame)),
             ),
         )
+        // Input reading
         .add_systems(ReadInputs, read_local_inputs)
+        // Round entry
         .add_systems(
             OnEnter(states::RollbackState::InRound),
             (map::generate_map, player::spawn_players.after(map::generate_map)),
         )
+        // Rollback logic
         .add_systems(
             RollbackUpdate,
             (
@@ -159,6 +207,32 @@ fn run_app() {
                 .ambiguous_with(collisions::kill_players),
         )
         .run();
+}
+
+// FIXED: System to enable UI after first frame (now runs correctly)
+fn set_ui_ready(mut ui_ready: ResMut<UiReady>) {
+    ui_ready.0 = true;
+    info!("✅ UiReady set to true - Egui should now draw");
+}
+
+// NEW: Fallback safety net - Force UiReady after 5 frames in WalletAuth
+#[derive(Resource, Default)]
+struct UiDelayTimer(pub Timer);
+
+fn force_ui_ready_after_delay(
+    mut commands: Commands,
+    mut timer: Local<UiDelayTimer>,
+    time: Res<Time>,
+    ui_ready: Res<UiReady>,
+) {
+    if ui_ready.0 {
+        return;  // Already ready
+    }
+    timer.0.tick(time.delta());
+    if timer.0.is_finished() {  // FIXED: Deprecated finished() -> is_finished()
+        commands.insert_resource(UiReady(true));
+        error!("⚠️ Fallback: Forced UiReady true after delay - check set_ui_ready condition!");
+    }
 }
 
 fn transition_to_asset_loading(mut next_state: ResMut<NextState<states::GameState>>) {

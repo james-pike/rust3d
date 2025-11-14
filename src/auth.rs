@@ -42,17 +42,32 @@ extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "kasware"], js_name = getAccounts)]
     async fn kasware_get_accounts() -> JsValue;
 
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
+    #[wasm_bindgen(js_namespace = console, js_name = log)]
+    fn console_log(s: &str);
     
-    #[wasm_bindgen(js_namespace = ["window"], js_name = kasware)]
-    static KASWARE: JsValue;
+    #[wasm_bindgen(js_namespace = ["window"], catch)]
+    fn eval(s: &str) -> Result<JsValue, JsValue>;
 }
 
 #[cfg(target_arch = "wasm32")]
 pub fn is_kasware_installed() -> bool {
-    use wasm_bindgen::JsCast;
-    !KASWARE.is_undefined() && !KASWARE.is_null()
+    // Check if window.kasware exists
+    match eval("typeof window.kasware !== 'undefined'") {
+        Ok(result) => {
+            if let Some(is_defined) = result.as_bool() {
+                if is_defined {
+                    console_log("✅ Kasware wallet detected");
+                    return true;
+                }
+            }
+            console_log("❌ Kasware wallet not found");
+            false
+        }
+        Err(_) => {
+            console_log("❌ Error checking for Kasware");
+            false
+        }
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -62,19 +77,29 @@ pub fn is_kasware_installed() -> bool {
 
 #[cfg(target_arch = "wasm32")]
 pub async fn connect_kasware() -> Result<String, String> {
-    use wasm_bindgen::JsCast;
+    console_log("🔌 Attempting to connect to Kasware...");
     
     let result = kasware_request_accounts().await;
     
+    console_log(&format!("📦 Received result from Kasware: {:?}", result));
+    
     if result.is_array() {
         let array = js_sys::Array::from(&result);
+        console_log(&format!("📊 Array length: {}", array.length()));
+        
         if array.length() > 0 {
             if let Some(address) = array.get(0).as_string() {
+                console_log(&format!("✅ Connected to address: {}", address));
                 return Ok(address);
             }
         }
+        console_log("❌ No accounts found in array");
         Err("No accounts found".to_string())
+    } else if let Some(error_msg) = result.as_string() {
+        console_log(&format!("❌ Error from Kasware: {}", error_msg));
+        Err(error_msg)
     } else {
+        console_log("❌ Unexpected response from Kasware");
         Err("Failed to connect to Kasware wallet".to_string())
     }
 }
@@ -84,15 +109,15 @@ pub async fn connect_kasware() -> Result<String, String> {
     Err("Kasware only available in browser".to_string())
 }
 
-#[derive(Event)]
+#[derive(Message)]
 pub struct ConnectWalletEvent;
 
-#[derive(Event)]
+#[derive(Message)]
 pub struct WalletConnectedEvent {
     pub address: String,
 }
 
-#[derive(Event)]
+#[derive(Message)]
 pub struct WalletConnectionFailedEvent {
     pub error: String,
 }
