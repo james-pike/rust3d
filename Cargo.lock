@@ -3064,10 +3064,14 @@ dependencies = [
  "bevy_roll_safe",
  "clap",
  "getrandom 0.3.4",
+ "js-sys",
  "rand 0.9.2",
  "rand_xoshiro",
  "serde",
  "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
