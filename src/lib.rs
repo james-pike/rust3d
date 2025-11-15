@@ -27,16 +27,18 @@ mod auth;
 mod auth_ui;
 mod inventory_system;  // NEW
 mod hud_system;        // NEW
+mod systems;           // ADD: For aura_effects (create src/systems/mod.rs with 'pub mod aura_effects;')
+mod materials;         // ADD: For AuraMaterial (create src/materials/mod.rs with 'pub mod aura;')
 
 use args::Args;
 use bevy_asset_loader::prelude::*;
-use bevy_egui::EguiPlugin;
+use bevy_egui::{EguiPlugin, EguiPrimaryContextPass}; // Fixed: Import EguiPrimaryContextPass instead
 use bevy_ggrs::prelude::*;
 use bevy_matchbox::prelude::PeerId;
 use bevy_roll_safe::prelude::*;
 use clap::Parser;
 use components::*;
-use input::*;
+use input::read_local_inputs;
 
 // Define UiReady resource here for simplicity (or move to resources.rs) - made pub for cross-module access
 #[derive(Resource, Default, PartialEq)]
@@ -46,6 +48,7 @@ use chat::ChatPlugin;
 use chat_ui::ChatUIPlugin;
 use auth_ui::AuthUIPlugin;
 use states::GameState;
+use systems::aura_effects::{setup_aura_effects, aura_effects_ui, handle_shader_reload}; // ADD
 
 type Config = bevy_ggrs::GgrsConfig<u8, PeerId>;
 
@@ -139,6 +142,16 @@ fn run_app() {
                 inventory_system::setup_inventory_system,
                 hud_system::setup_player_vitals,
             ),
+        )
+        // Aura systems (visual only, no rollback needed)
+        .add_systems(Startup, setup_aura_effects)
+        .add_systems(
+            EguiPrimaryContextPass, // Fixed: Add to EguiPrimaryContextPass schedule
+            aura_effects_ui,
+        )
+        .add_systems(
+            Update,
+            handle_shader_reload,
         )
         // Update systems
         .add_systems(
