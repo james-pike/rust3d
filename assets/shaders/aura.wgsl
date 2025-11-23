@@ -9,7 +9,9 @@ struct AuraMaterial {
     color_r: f32,
     color_g: f32,
     color_b: f32,
-    _padding: f32,
+    _padding1: f32,
+    _padding2: f32,
+    _padding3: f32,
 }
 
 @group(0) @binding(0) var<uniform> view: View;

@@ -73,7 +73,9 @@ pub fn spawn_players(
             color_r: 1.0,
             color_g: 0.5,
             color_b: 0.0,
-            _padding: 0.0,
+            _padding1: 0.0,
+            _padding2: 0.0,
+            _padding3: 0.0,
         })
     } else {
         // Fallback: Spawn without material (invisible disc, but entity exists for later UI)
@@ -86,6 +88,7 @@ pub fn spawn_players(
         AuraDisc,
         Transform::from_scale(Vec3::new(1.0, 1.0, 1.0)), // No offset needed; shader handles positioning
         Visibility::Inherited,
+        NotShadowCaster, // Prevent aura from casting shadows
     );
 
     // Player 1

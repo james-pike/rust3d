@@ -28,9 +28,5 @@ pub fn setup(
         Transform::from_xyz(4.0, 8.0, 4.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
-    // 3D Camera with third-person view
-    commands.spawn((
-        Camera3d::default(),
-        Transform::from_xyz(0.0, 15.0, 15.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
-    ));
+    // Camera is already spawned in auth_ui.rs during WalletAuth state
 }

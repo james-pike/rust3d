@@ -20,12 +20,16 @@ pub struct AuraMaterial {
     #[uniform(100)]
     pub color_b: f32,
     #[uniform(100)]
-    pub _padding: f32, // Padding for alignment
+    pub _padding1: f32, // Padding for 16-byte alignment
+    #[uniform(100)]
+    pub _padding2: f32, // Total struct size: 32 bytes (8 * f32)
+    #[uniform(100)]
+    pub _padding3: f32,
 }
 
 impl Material for AuraMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/aura.wgsl".into()
+        "shaders/aura.wgsl".into() // Path relative to assets/ directory
     }
 
     fn alpha_mode(&self) -> AlphaMode {

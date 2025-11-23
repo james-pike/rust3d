@@ -56,7 +56,7 @@ type Config = bevy_ggrs::GgrsConfig<u8, PeerId>;
 struct ModelAssets {
     #[asset(path = "player1.glb#Scene0")]
     player_1: Handle<Scene>,
-    #[asset(path = "player2.glb#Scene0")]
+    #[asset(path = "player1.glb#Scene0")]
     player_2: Handle<Scene>,
 }
 
@@ -85,6 +85,7 @@ fn run_app() {
             GgrsPlugin::<Config>::default(),
             RollbackSchedulePlugin::new_ggrs(),
             EguiPlugin::default(),
+            MaterialPlugin::<materials::aura::AuraMaterial>::default(),
         ))
         // Custom plugins
         .add_plugins(ChatPlugin)
