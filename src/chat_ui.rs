@@ -17,6 +17,7 @@ impl Plugin for ChatUIPlugin {
             .add_systems(
                 PostUpdate,
                 (
+                    handle_chat_ui_interaction,
                     update_chat_ui
                         .run_if(
                             in_state(GameState::Matchmaking)
@@ -39,6 +40,9 @@ struct ChatMessagesDisplay;
 struct ChatInputDisplay;
 
 #[derive(Component)]
+struct ChatInputContainer;
+
+#[derive(Component)]
 struct ChatMessageText;
 
 #[derive(Component)]
@@ -53,7 +57,12 @@ fn setup_chat_ui(mut commands: Commands) {
             height: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
             justify_content: JustifyContent::End,
-            padding: UiRect::all(Val::Px(10.0)),
+            padding: UiRect {
+                left: Val::Px(10.0),
+                right: Val::Px(10.0),
+                top: Val::Px(10.0),
+                bottom: Val::Px(150.0), // Push chat above the HUD (140px + 10px margin)
+            },
             ..default()
         },
         BackgroundColor(Color::NONE),
@@ -72,7 +81,7 @@ fn setup_chat_ui(mut commands: Commands) {
         ))
         .with_children(|parent| {
             parent.spawn((
-                Text::new("Chat: Press Enter"),
+                Text::new("Chat: Click to type"),
                 TextFont {
                     font_size: 14.0,
                     ..default()
@@ -110,10 +119,12 @@ fn setup_chat_ui(mut commands: Commands) {
             },
             BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.9)),
             BorderColor::all(Color::srgb(0.3, 0.3, 0.3)),
+            Interaction::default(),
+            ChatInputContainer,
         ))
         .with_children(|parent| {
             parent.spawn((
-                Text::new("Press Enter to chat..."),
+                Text::new("Click to chat..."),
                 TextFont {
                     font_size: 16.0,
                     ..default()
@@ -147,9 +158,9 @@ fn update_chat_ui(
     // Update status indicator
     if let Ok(mut status_text) = status_query.single_mut() {
         **status_text = if chat_input.is_focused {
-            "Chat: ACTIVE (ESC to close)".to_string()
+            "Chat: ACTIVE (ESC or click away to close)".to_string()
         } else {
-            "Chat: Press Enter".to_string()
+            "Chat: Click to type".to_string()
         };
     }
 
@@ -159,7 +170,7 @@ fn update_chat_ui(
             **text = format!("> {}", chat_input.current_text);
             *color = TextColor(Color::WHITE);
         } else {
-            **text = "Press Enter to chat...".to_string();
+            **text = "Click to chat...".to_string();
             *color = TextColor(Color::srgb(0.7, 0.7, 0.7));
         }
     }
@@ -191,6 +202,36 @@ fn update_chat_ui(
                     ));
                 }
             });
+        }
+    }
+}
+
+fn handle_chat_ui_interaction(
+    mut chat_input: ResMut<ChatInput>,
+    chat_input_query: Query<&Interaction, (With<ChatInputContainer>, Changed<Interaction>)>,
+    mouse_button: Res<ButtonInput<MouseButton>>,
+) {
+    // Check if chat input box was clicked
+    if let Ok(interaction) = chat_input_query.single() {
+        if *interaction == Interaction::Pressed {
+            chat_input.is_focused = true;
+            info!("Chat focused by click");
+        }
+    }
+
+    // Check for clicks outside the chat box to unfocus
+    // We'll only unfocus if clicking and not clicking on the chat input
+    if mouse_button.just_pressed(MouseButton::Left) {
+        // Check if we clicked on the chat input container
+        let clicked_chat = chat_input_query
+            .iter()
+            .any(|interaction| matches!(interaction, Interaction::Pressed));
+
+        // If we didn't click on chat and chat is focused, unfocus it
+        if !clicked_chat && chat_input.is_focused {
+            chat_input.is_focused = false;
+            chat_input.current_text.clear();
+            info!("Chat unfocused by clicking outside");
         }
     }
 }

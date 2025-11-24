@@ -299,7 +299,15 @@ pub fn setup_inventory_system(mut commands: Commands, asset_server: Res<AssetSer
 pub fn handle_inventory_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut drawer_state: ResMut<InventoryDrawerState>,
+    chat_input: Option<Res<crate::chat::ChatInput>>,
 ) {
+    // Don't process inventory hotkey if chat is focused
+    if let Some(chat) = chat_input {
+        if chat.is_focused {
+            return;
+        }
+    }
+
     if keyboard.just_pressed(KeyCode::KeyI) {
         drawer_state.is_open = !drawer_state.is_open;
     }

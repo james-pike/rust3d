@@ -16,38 +16,44 @@ pub fn read_local_inputs(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     local_players: Res<LocalPlayers>,
+    chat_input: Option<Res<crate::chat::ChatInput>>,
 ) {
     let mut local_inputs = HashMap::new();
+
+    // Don't process gameplay inputs if chat is focused
+    let chat_is_focused = chat_input.as_ref().map(|c| c.is_focused).unwrap_or(false);
 
     for handle in &local_players.0 {
         let mut input = 0u8;
 
-        // Movement inputs
-        if keys.any_pressed([KeyCode::ArrowUp, KeyCode::KeyW]) {
-            input |= INPUT_UP;
-        }
-        if keys.any_pressed([KeyCode::ArrowDown, KeyCode::KeyS]) {
-            input |= INPUT_DOWN;
-        }
-        if keys.any_pressed([KeyCode::ArrowLeft, KeyCode::KeyA]) {
-            input |= INPUT_LEFT
-        }
-        if keys.any_pressed([KeyCode::ArrowRight, KeyCode::KeyD]) {
-            input |= INPUT_RIGHT;
-        }
-        
-        // Combat inputs
-        if keys.any_pressed([KeyCode::Space, KeyCode::Enter]) {
-            input |= INPUT_FIRE;
-        }
-        if keys.pressed(KeyCode::ShiftLeft) {
-            input |= INPUT_DODGE;
-        }
-        if keys.pressed(KeyCode::ControlLeft) {
-            input |= INPUT_BLOCK;
-        }
-        if keys.pressed(KeyCode::ShiftRight) {
-            input |= INPUT_SPRINT;
+        if !chat_is_focused {
+            // Movement inputs
+            if keys.any_pressed([KeyCode::ArrowUp, KeyCode::KeyW]) {
+                input |= INPUT_UP;
+            }
+            if keys.any_pressed([KeyCode::ArrowDown, KeyCode::KeyS]) {
+                input |= INPUT_DOWN;
+            }
+            if keys.any_pressed([KeyCode::ArrowLeft, KeyCode::KeyA]) {
+                input |= INPUT_LEFT
+            }
+            if keys.any_pressed([KeyCode::ArrowRight, KeyCode::KeyD]) {
+                input |= INPUT_RIGHT;
+            }
+
+            // Combat inputs
+            if keys.any_pressed([KeyCode::Space, KeyCode::Enter]) {
+                input |= INPUT_FIRE;
+            }
+            if keys.pressed(KeyCode::ShiftLeft) {
+                input |= INPUT_DODGE;
+            }
+            if keys.pressed(KeyCode::ControlLeft) {
+                input |= INPUT_BLOCK;
+            }
+            if keys.pressed(KeyCode::ShiftRight) {
+                input |= INPUT_SPRINT;
+            }
         }
 
         local_inputs.insert(*handle, input);
