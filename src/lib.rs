@@ -100,8 +100,8 @@ fn run_app() {
         )
         // GGRS rollback setup
         .init_ggrs_state::<core::states::RollbackState>()
-        .rollback_resource_with_clone::<resources::RoundEndTimer>()
-        .rollback_resource_with_copy::<resources::Scores>()
+        .rollback_resource_with_clone::<core::resources::RoundEndTimer>()
+        .rollback_resource_with_copy::<core::resources::Scores>()
         .rollback_component_with_clone::<Transform>()
         .rollback_component_with_copy::<Bullet>()
         .rollback_component_with_copy::<BulletReady>()
@@ -113,11 +113,11 @@ fn run_app() {
         // Resources
         .insert_resource(args)
         .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)))
-        .init_resource::<resources::RoundEndTimer>()
-        .init_resource::<resources::Scores>()
+        .init_resource::<core::resources::RoundEndTimer>()
+        .init_resource::<core::resources::Scores>()
         .init_resource::<UiReady>()
-        .init_resource::<lobby::PlayerProfile>()
-        .init_resource::<lobby::LobbyNotifications>()
+        .init_resource::<ui::lobby::PlayerProfile>()
+        .init_resource::<ui::lobby::LobbyNotifications>()
         // REMOVED: OnEnter(GameState::WalletAuth) - handled by AuthUIPlugin
 
         // Flip UiReady after first frame (runs ONCE when false)
@@ -131,26 +131,26 @@ fn run_app() {
         .add_systems(
             OnEnter(core::states::GameState::Lobby),
             (
-                lobby::setup_lobby_resources,
-                lobby::spawn_lobby_knight,
-                lobby::spawn_lobby_camera,
-                lobby::spawn_lobby_lighting,
-                inventory_system::setup_inventory_system,
-                hud_system::setup_player_vitals,
+                ui::lobby::setup_lobby_resources,
+                ui::lobby::spawn_lobby_knight,
+                ui::lobby::spawn_lobby_camera,
+                ui::lobby::spawn_lobby_lighting,
+                ui::inventory::setup_inventory_system,
+                ui::hud::setup_player_vitals,
             ),
         )
         // Lobby exit - cleanup
         .add_systems(
             OnExit(core::states::GameState::Lobby),
-            lobby::cleanup_lobby,
+            ui::lobby::cleanup_lobby,
         )
         // Matchmaking entry
         .add_systems(
             OnEnter(core::states::GameState::Matchmaking),
             (
-                setup::setup,
-                matchmaking::start_matchbox_socket.run_if(matchmaking::p2p_mode),
-                chat::setup_chat_socket.run_if(matchmaking::p2p_mode),
+                utils::setup::setup,
+                network::matchmaking::start_matchbox_socket.run_if(network::matchmaking::p2p_mode),
+                setup_chat_socket.run_if(network::matchmaking::p2p_mode),
             ),
         )
         // Aura systems (visual only, no rollback needed)
@@ -159,7 +159,7 @@ fn run_app() {
             EguiPrimaryContextPass, // Fixed: Add to EguiPrimaryContextPass schedule
             (
                 aura_effects_ui,
-                lobby::lobby_ui.run_if(in_state(core::states::GameState::Lobby)),
+                ui::lobby::lobby_ui.run_if(in_state(core::states::GameState::Lobby)),
             ),
         )
         .add_systems(
@@ -172,43 +172,43 @@ fn run_app() {
             (
                 // Inventory systems in Lobby
                 (
-                    inventory_system::handle_inventory_input,
-                    inventory_system::animate_inventory_drawer,
-                    inventory_system::update_texture_cache,
-                    inventory_system::inventory_ui,
-                    inventory_system::attach_to_bones,
+                    ui::inventory::handle_inventory_input,
+                    ui::inventory::animate_inventory_drawer,
+                    ui::inventory::update_texture_cache,
+                    ui::inventory::inventory_ui,
+                    ui::inventory::attach_to_bones,
                 )
                     .run_if(in_state(core::states::GameState::Lobby)),
                 // HUD systems in Lobby
                 (
-                    hud_system::render_diablo_hud,
-                    hud_system::simulate_vitals_changes,
+                    ui::hud::render_diablo_hud,
+                    ui::hud::simulate_vitals_changes,
                 )
                     .run_if(in_state(core::states::GameState::Lobby)),
                 // Matchmaking systems
                 (
-                    matchmaking::wait_for_players.run_if(matchmaking::p2p_mode),
-                    matchmaking::start_synctest_session.run_if(matchmaking::synctest_mode),
+                    network::matchmaking::wait_for_players.run_if(network::matchmaking::p2p_mode),
+                    network::matchmaking::start_synctest_session.run_if(network::matchmaking::synctest_mode),
                 )
                     .run_if(in_state(core::states::GameState::Matchmaking)),
                 // InGame systems
-                camera::camera_follow.run_if(in_state(core::states::GameState::InGame)),
-                ui::update_score_ui.run_if(in_state(core::states::GameState::InGame)),
-                auth_ui::update_wallet_display.run_if(in_state(core::states::GameState::InGame)),
-                networking::handle_ggrs_events.run_if(in_state(core::states::GameState::InGame)),
+                game::camera::camera_follow.run_if(in_state(core::states::GameState::InGame)),
+                ui::score::update_score_ui.run_if(in_state(core::states::GameState::InGame)),
+                ui::auth::ui::update_wallet_display.run_if(in_state(core::states::GameState::InGame)),
+                network::session::handle_ggrs_events.run_if(in_state(core::states::GameState::InGame)),
                 // Inventory systems during gameplay
                 (
-                    inventory_system::handle_inventory_input,
-                    inventory_system::animate_inventory_drawer,
-                    inventory_system::update_texture_cache,
-                    inventory_system::inventory_ui,
-                    inventory_system::attach_to_bones,
+                    ui::inventory::handle_inventory_input,
+                    ui::inventory::animate_inventory_drawer,
+                    ui::inventory::update_texture_cache,
+                    ui::inventory::inventory_ui,
+                    ui::inventory::attach_to_bones,
                 )
                     .run_if(in_state(core::states::GameState::InGame)),
                 // HUD systems during gameplay
                 (
-                    hud_system::render_diablo_hud,
-                    hud_system::simulate_vitals_changes,
+                    ui::hud::render_diablo_hud,
+                    ui::hud::simulate_vitals_changes,
                 )
                     .run_if(in_state(core::states::GameState::InGame)),
             ),
@@ -218,31 +218,31 @@ fn run_app() {
         // Round entry
         .add_systems(
             OnEnter(core::states::RollbackState::InRound),
-            (map::generate_map, player::spawn_players.after(map::generate_map)),
+            (world::map::generate_map, game::player::spawn_players.after(world::map::generate_map)),
         )
         // Rollback logic
         .add_systems(
             RollbackUpdate,
             (
-                player::move_players,
-                collisions::resolve_wall_collisions.after(player::move_players),
-                bullet::reload_bullet,
-                bullet::fire_bullets
-                    .after(player::move_players)
-                    .after(bullet::reload_bullet)
-                    .after(collisions::resolve_wall_collisions),
-                bullet::move_bullet.after(bullet::fire_bullets),
-                collisions::bullet_wall_collisions.after(bullet::move_bullet),
-                collisions::kill_players.after(bullet::move_bullet).after(player::move_players),
+                game::player::move_players,
+                world::collisions::resolve_wall_collisions.after(game::player::move_players),
+                entities::bullet::reload_bullet,
+                entities::bullet::fire_bullets
+                    .after(game::player::move_players)
+                    .after(entities::bullet::reload_bullet)
+                    .after(world::collisions::resolve_wall_collisions),
+                entities::bullet::move_bullet.after(entities::bullet::fire_bullets),
+                world::collisions::bullet_wall_collisions.after(entities::bullet::move_bullet),
+                world::collisions::kill_players.after(entities::bullet::move_bullet).after(game::player::move_players),
             )
                 .run_if(in_state(core::states::RollbackState::InRound))
                 .after(bevy_roll_safe::apply_state_transition::<core::states::RollbackState>),
         )
         .add_systems(
             RollbackUpdate,
-            round::round_end_timeout
+            game::round::round_end_timeout
                 .run_if(in_state(core::states::RollbackState::RoundEnd))
-                .ambiguous_with(collisions::kill_players),
+                .ambiguous_with(world::collisions::kill_players),
         )
         .run();
 }

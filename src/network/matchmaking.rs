@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy_ggrs::{ggrs::{DesyncDetection, PlayerType}, *};
 use bevy_matchbox::prelude::*;
 use rand::{rng, Rng};
-use crate::{Args, Config, states::GameState, resources::SessionSeed};
+use crate::{core::args::Args, Config, core::states::GameState, core::resources::SessionSeed};
 
 pub fn synctest_mode(args: Res<Args>) -> bool {
     args.synctest

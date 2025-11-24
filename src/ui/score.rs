@@ -1,7 +1,7 @@
 // ui.rs
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui::{self, Align2, Color32, FontId, RichText}};
-use crate::resources::Scores;
+use crate::core::resources::Scores;
 
 pub fn update_score_ui(mut contexts: EguiContexts, scores: Res<Scores>) {
     let Scores(p1_score, p2_score) = *scores;

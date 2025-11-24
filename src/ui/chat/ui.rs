@@ -1,7 +1,7 @@
 // src/chat_ui.rs - FIXED (better visibility and debugging)
 use bevy::prelude::*;
-use crate::states::GameState;  // <-- Added: Import for state guards
-use crate::chat::{ChatMessages, ChatInput};
+use crate::core::states::GameState;  // <-- Added: Import for state guards
+use crate::ui::chat::{ChatMessages, ChatInput};
 
 pub struct ChatUIPlugin;
 

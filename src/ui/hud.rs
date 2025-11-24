@@ -386,7 +386,7 @@ pub fn simulate_vitals_changes(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut vitals: ResMut<PlayerVitals>,
     time: Res<Time>,
-    chat_input: Option<Res<crate::chat::ChatInput>>,
+    chat_input: Option<Res<crate::ui::chat::ChatInput>>,
 ) {
     // Don't process hotkeys if chat is focused
     let chat_is_focused = chat_input.as_ref().map(|c| c.is_focused).unwrap_or(false);

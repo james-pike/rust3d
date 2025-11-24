@@ -2,7 +2,7 @@
 use bevy::prelude::*;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand::{Rng, SeedableRng};
-use crate::{constants::*, components::Wall, resources::{Scores, SessionSeed}};
+use crate::{core::constants::*, entities::components::Wall, core::resources::{Scores, SessionSeed}};
 
 pub fn generate_map(
     mut commands: Commands,

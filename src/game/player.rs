@@ -7,11 +7,11 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 use rand::{Rng, SeedableRng};
 use crate::{
     Config,
-    constants::*,
-    components::{Player, BulletReady, MoveDir, DistanceTraveled, Bullet},
+    core::constants::*,
+    entities::components::{Player, BulletReady, MoveDir, DistanceTraveled, Bullet},
     ModelAssets,
-    resources::{Scores, SessionSeed},
-    input::direction,
+    core::resources::{Scores, SessionSeed},
+    game::input::direction,
     materials::aura::{AuraMaterial, EFFECT_FIRE},
     systems::aura_effects::AuraDisc,
 };

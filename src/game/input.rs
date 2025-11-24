@@ -3,20 +3,20 @@ use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_ggrs::{LocalInputs, LocalPlayers};
 
 // Input bit flags
-const INPUT_UP: u8 = 1 << 0;
-const INPUT_DOWN: u8 = 1 << 1;
-const INPUT_LEFT: u8 = 1 << 2;
-const INPUT_RIGHT: u8 = 1 << 3;
-const INPUT_FIRE: u8 = 1 << 4;      // Used for both fire and attack
-const INPUT_DODGE: u8 = 1 << 5;     // Dodge/Roll
-const INPUT_BLOCK: u8 = 1 << 6;     // Block
-const INPUT_SPRINT: u8 = 1 << 7;    // Sprint (optional)
+pub const INPUT_UP: u8 = 1 << 0;
+pub const INPUT_DOWN: u8 = 1 << 1;
+pub const INPUT_LEFT: u8 = 1 << 2;
+pub const INPUT_RIGHT: u8 = 1 << 3;
+pub const INPUT_FIRE: u8 = 1 << 4;      // Used for both fire and attack
+pub const INPUT_DODGE: u8 = 1 << 5;     // Dodge/Roll
+pub const INPUT_BLOCK: u8 = 1 << 6;     // Block
+pub const INPUT_SPRINT: u8 = 1 << 7;    // Sprint (optional)
 
 pub fn read_local_inputs(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     local_players: Res<LocalPlayers>,
-    chat_input: Option<Res<crate::chat::ChatInput>>,
+    chat_input: Option<Res<crate::ui::chat::ChatInput>>,
 ) {
     let mut local_inputs = HashMap::new();
 

@@ -78,8 +78,8 @@ pub fn update_skill_cooldowns(
 pub fn handle_skill_hotkeys(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut skill_bar: ResMut<SkillBar>,
-    mut vitals: ResMut<crate::hud_system::PlayerVitals>,
-    chat_input: Option<Res<crate::chat::ChatInput>>,
+    mut vitals: ResMut<crate::ui::hud::PlayerVitals>,
+    chat_input: Option<Res<crate::ui::chat::ChatInput>>,
 ) {
     // Don't use skills if chat is focused
     if let Some(chat) = chat_input {
@@ -128,11 +128,9 @@ pub fn handle_skill_hotkeys(
 pub fn render_skill_bar(
     mut contexts: EguiContexts,
     skill_bar: Res<SkillBar>,
-    vitals: Res<crate::hud_system::PlayerVitals>,
+    vitals: Res<crate::ui::hud::PlayerVitals>,
 ) {
-    let Ok(ctx) = contexts.try_ctx_mut() else {
-        return;
-    };
+    let ctx = contexts.ctx_mut().expect("No Egui context found");
 
     let screen_rect = ctx.viewport_rect();
 
@@ -166,7 +164,7 @@ fn render_skill_slot(
     ui: &mut egui::Ui,
     index: usize,
     skill: &Option<Skill>,
-    vitals: &crate::hud_system::PlayerVitals,
+    vitals: &crate::ui::hud::PlayerVitals,
 ) {
     let slot_size = egui::vec2(52.0, 52.0);
     let (rect, response) = ui.allocate_exact_size(slot_size, egui::Sense::click());
@@ -238,43 +236,41 @@ fn render_skill_slot(
             egui::Color32::from_rgb(200, 180, 140),
         );
 
-        // Tooltip on hover
-        if response.hovered() {
-            egui::show_tooltip_at_pointer(ui.ctx(), egui::Id::new(format!("skill_tooltip_{}", index)), |ui| {
-                ui.label(egui::RichText::new(&skill.name)
-                    .size(14.0)
-                    .color(egui::Color32::from_rgb(200, 180, 140))
-                    .strong());
+        // Tooltip on hover and click handling
+        let response = response.on_hover_ui(|ui| {
+            ui.label(egui::RichText::new(&skill.name)
+                .size(14.0)
+                .color(egui::Color32::from_rgb(200, 180, 140))
+                .strong());
 
-                ui.add_space(4.0);
+            ui.add_space(4.0);
 
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Mana:")
-                        .size(12.0)
-                        .color(egui::Color32::from_rgb(150, 130, 100)));
-                    ui.label(egui::RichText::new(format!("{:.0}", skill.mana_cost))
-                        .size(12.0)
-                        .color(egui::Color32::from_rgb(100, 200, 255)));
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Cooldown:")
-                        .size(12.0)
-                        .color(egui::Color32::from_rgb(150, 130, 100)));
-                    ui.label(egui::RichText::new(format!("{:.1}s", skill.cooldown_max))
-                        .size(12.0)
-                        .color(egui::Color32::WHITE));
-                });
-
-                if skill.cooldown_remaining > 0.0 {
-                    ui.add_space(4.0);
-                    ui.label(egui::RichText::new(format!("Ready in: {:.1}s", skill.cooldown_remaining))
-                        .size(11.0)
-                        .color(egui::Color32::from_rgb(255, 200, 100))
-                        .italics());
-                }
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Mana:")
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(150, 130, 100)));
+                ui.label(egui::RichText::new(format!("{:.0}", skill.mana_cost))
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(100, 200, 255)));
             });
-        }
+
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Cooldown:")
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(150, 130, 100)));
+                ui.label(egui::RichText::new(format!("{:.1}s", skill.cooldown_max))
+                    .size(12.0)
+                    .color(egui::Color32::WHITE));
+            });
+
+            if skill.cooldown_remaining > 0.0 {
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new(format!("Ready in: {:.1}s", skill.cooldown_remaining))
+                    .size(11.0)
+                    .color(egui::Color32::from_rgb(255, 200, 100))
+                    .italics());
+            }
+        });
 
         // Click to use
         if response.clicked() && skill.is_ready() && vitals.energy >= skill.mana_cost {

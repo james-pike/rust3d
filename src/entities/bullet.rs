@@ -1,7 +1,7 @@
 // bullet.rs
 use bevy::prelude::*;
 use bevy_ggrs::AddRollbackCommandExtension;
-use crate::{Config, PlayerInputs, components::{Bullet, BulletReady, MoveDir, Player}, constants::BULLET_RADIUS, input::fire};
+use crate::{Config, PlayerInputs, entities::components::{Bullet, BulletReady, MoveDir, Player}, core::constants::BULLET_RADIUS, game::input::fire};
 
 pub fn reload_bullet(
     inputs: Res<PlayerInputs<Config>>,

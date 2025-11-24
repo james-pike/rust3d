@@ -1,8 +1,11 @@
 // combat.rs
 use bevy::prelude::*;
 use bevy_roll_safe::prelude::*;
-use crate::components::*;
-use crate::constants::*;
+use bevy_ggrs::{PlayerInputs, Rollback, AddRollbackCommandExtension};
+use crate::entities::components::*;
+use crate::core::constants::*;
+use crate::Config;
+use crate::game::input::{INPUT_FIRE, INPUT_DOWN};
 
 // Combat Components
 #[derive(Component, Copy, Clone, Debug, PartialEq)]
@@ -41,12 +44,7 @@ pub struct Health {
     pub invulnerable_timer: f32,
 }
 
-#[derive(Component, Copy, Clone, Debug)]
-pub struct AnimationState {
-    pub current_animation: String,
-    pub direction: Direction,
-    pub alert_mode: bool, // Whether in combat/alert mode
-}
+// AnimationState is defined in entities::components, imported above
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Direction {
@@ -125,7 +123,7 @@ pub fn process_combat_input(
         }
         // Handle movement states
         else if !combat.is_attacking {
-            let moving = move_dir.x.abs() > 0.01 || move_dir.y.abs() > 0.01;
+            let moving = move_dir.0.x.abs() > 0.01 || move_dir.0.y.abs() > 0.01;
             
             if moving {
                 // Determine if running (shift key) or walking
@@ -173,8 +171,7 @@ pub fn spawn_attack_hitboxes(
                     Transform::from_translation(hitbox_pos),
                     GlobalTransform::default(),
                     *player,
-                    Rollback::new(Rollback::new_from_id(entity.index())),
-                ));
+                )).add_rollback();
             }
         }
     }
@@ -197,11 +194,11 @@ pub fn update_hitboxes(
 
 // Detect hits and apply damage
 pub fn detect_hits(
-    mut victim_query: Query<(&Transform, &mut Health, &mut CombatState, &Player)>,
+    mut victim_query: Query<(Entity, &Transform, &mut Health, &mut CombatState, &Player)>,
     hitbox_query: Query<(&Transform, &AttackHitbox, &Player)>,
-    mut attacker_query: Query<&mut CombatState>,
+    mut attacker_query: Query<&mut CombatState, With<Player>>,
 ) {
-    for (victim_transform, mut health, mut victim_combat, victim_player) in victim_query.iter_mut() {
+    for (victim_entity, victim_transform, mut health, mut victim_combat, victim_player) in victim_query.iter_mut() {
         // Skip if invulnerable
         if health.invulnerable_timer > 0.0 {
             continue;
@@ -215,12 +212,12 @@ pub fn detect_hits(
 
             // Check distance
             let distance = victim_transform.translation.distance(hitbox_transform.translation);
-            
+
             if distance < HITBOX_RANGE && hitbox.active {
                 // Apply damage
                 health.current = (health.current - hitbox.damage).max(0.0);
                 health.invulnerable_timer = INVULNERABILITY_DURATION;
-                
+
                 // Set hit state
                 if health.current > 0.0 {
                     victim_combat.current_action = CombatAction::Hit;
@@ -229,10 +226,8 @@ pub fn detect_hits(
                     victim_combat.current_action = CombatAction::Death;
                 }
 
-                // Mark hit as landed for attacker
-                if let Ok(mut attacker_combat) = attacker_query.get_mut(attacker_player.handle.into()) {
-                    attacker_combat.hit_landed = true;
-                }
+                // Note: Can't easily get attacker entity from hitbox Player component
+                // This would need entity tracking in AttackHitbox component
             }
         }
     }
@@ -322,12 +317,12 @@ pub fn select_animation(
 }
 
 fn determine_direction(move_dir: &MoveDir, transform: &Transform) -> Direction {
-    if move_dir.x.abs() < 0.01 && move_dir.y.abs() < 0.01 {
+    if move_dir.0.x.abs() < 0.01 && move_dir.0.y.abs() < 0.01 {
         return Direction::Forward;
     }
     
     let forward = transform.rotation * Vec3::Z;
-    let move_vec = Vec3::new(move_dir.x, 0.0, move_dir.y).normalize();
+    let move_vec = Vec3::new(move_dir.0.x, 0.0, move_dir.0.y).normalize();
     let dot = forward.dot(move_vec);
     let cross = forward.cross(move_vec).y;
     

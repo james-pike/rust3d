@@ -247,7 +247,7 @@ pub fn combat_input_system(
     time: Res<Time>,
     inputs: Res<PlayerInputs<Config>>,
 ) {
-    use crate::input::{attack, dodge, block};
+    use crate::game::input::{attack, dodge, block};
     
     for (mut combat, mut stamina, mut anim, mut combo, player) in &mut players {
         let (input, _) = inputs[player.handle];

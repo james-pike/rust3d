@@ -1,6 +1,6 @@
 // collisions.rs
 use bevy::prelude::*;
-use crate::{constants::*, components::{Wall, Bullet, Player}, states::RollbackState, resources::Scores};
+use crate::{core::constants::*, entities::components::{Wall, Bullet, Player}, core::states::RollbackState, core::resources::Scores};
 
 pub fn resolve_wall_collisions(
     mut players: Query<&mut Transform, With<Player>>,

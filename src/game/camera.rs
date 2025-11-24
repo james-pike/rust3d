@@ -1,8 +1,8 @@
 // camera.rs (fixed)
 use bevy::prelude::*;
 use bevy_ggrs::LocalPlayers;
-use crate::components::Player;
-use crate::states::GameState;
+use crate::entities::components::Player;
+use crate::core::states::GameState;
 
 pub fn camera_follow(
     local_players: Res<LocalPlayers>,

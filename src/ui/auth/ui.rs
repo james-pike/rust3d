@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
-use crate::states::GameState;
+use crate::core::states::GameState;
 use crate::UiReady;
-use crate::auth::{connect_kasware, is_kasware_installed, WalletInfo};
+use crate::ui::auth::{connect_kasware, is_kasware_installed, WalletInfo};
 
 #[derive(Resource, Default)]
 pub struct LoginUI {

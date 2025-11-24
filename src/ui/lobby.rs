@@ -7,8 +7,8 @@ use crate::{
     ModelAssets,
     materials::aura::{AuraMaterial, EFFECT_FIRE},
     systems::aura_effects::AuraDisc,
-    states::GameState,
-    inventory_system::KnightCharacter,
+    core::states::GameState,
+    ui::inventory::KnightCharacter,
 };
 
 /// Component to mark lobby entities that should be despawned when leaving lobby

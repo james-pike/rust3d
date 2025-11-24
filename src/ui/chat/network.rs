@@ -146,7 +146,7 @@ fn send_chat_messages(
     mut chat_messages: ResMut<ChatMessages>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    profile: Option<Res<crate::lobby::PlayerProfile>>,
+    profile: Option<Res<crate::ui::lobby::PlayerProfile>>,
 ) {
     let Some(mut chat_socket) = chat_socket else {
         return;

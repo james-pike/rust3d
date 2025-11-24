@@ -1,6 +1,6 @@
 // setup.rs
 use bevy::prelude::*;
-use crate::constants::MAP_SIZE;
+use crate::core::constants::MAP_SIZE;
 
 pub fn setup(
     mut commands: Commands,
