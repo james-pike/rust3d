@@ -1,6 +1,7 @@
 // player.rs
 use bevy::prelude::*;
 use bevy::math::primitives::Cylinder;
+use bevy::light::NotShadowCaster;
 use bevy_ggrs::{prelude::*, AddRollbackCommandExtension};
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand::{Rng, SeedableRng};

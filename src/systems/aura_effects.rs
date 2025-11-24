@@ -186,7 +186,7 @@ pub fn aura_effects_ui(
 
 /// System to handle shader hot-reloading (fixed for Bevy 0.14)
 pub fn handle_shader_reload(
-    mut events: EventReader<AssetEvent<Shader>>, // Use EventReader (standard for Events)
+    mut events: MessageReader<AssetEvent<Shader>>, // Use MessageReader (standard for Events)
     _shaders: Res<Assets<Shader>>, // Prefix with _ to suppress unused warning
 ) {
     for event in events.read() { // Use .read() for iteration

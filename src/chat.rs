@@ -68,7 +68,7 @@ pub fn setup_chat_socket(mut commands: Commands) {
 fn handle_chat_input(
     keys: Res<ButtonInput<KeyCode>>,
     mut chat_input: ResMut<ChatInput>,
-    mut char_events: EventReader<KeyboardInput>,
+    mut char_events: MessageReader<KeyboardInput>,
 ) {
     // Debug: Log all keyboard events
     let event_count = char_events.len();
