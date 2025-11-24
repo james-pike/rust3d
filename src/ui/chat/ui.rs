@@ -23,12 +23,14 @@ impl Plugin for ChatUIPlugin {
                             in_state(GameState::Lobby)
                                 .or(in_state(GameState::Matchmaking))
                                 .or(in_state(GameState::InGame))
-                        ),  // <-- Guard: Chat in Lobby, Matchmaking, and InGame
+                                .or(in_state(GameState::GameEnd))
+                        ),  // <-- Guard: Chat in Lobby, Matchmaking, InGame, and GameEnd
                     debug_chat_state
                         .run_if(
                             in_state(GameState::Lobby)
                                 .or(in_state(GameState::Matchmaking))
                                 .or(in_state(GameState::InGame))
+                                .or(in_state(GameState::GameEnd))
                         ),  // <-- Guard: No logs in early states
                 ),
             );
@@ -50,7 +52,16 @@ struct ChatMessageText;
 #[derive(Component)]
 struct ChatStatusIndicator;
 
-fn setup_chat_ui(mut commands: Commands) {
+fn setup_chat_ui(
+    mut commands: Commands,
+    existing_chat: Query<Entity, With<ChatInputContainer>>,
+) {
+    // Only create chat UI if it doesn't already exist
+    if !existing_chat.is_empty() {
+        info!("Chat UI already exists, skipping setup");
+        return;
+    }
+
     info!("Setting up chat UI");  // <-- Debug: Confirm enter
     // Root UI node
     commands.spawn((

@@ -164,6 +164,7 @@ fn run_app() {
                 ui::hud::setup_player_vitals,
                 reset_game_stats,
                 force_leaderboard_refresh,
+                setup_chat_socket.run_if(network::matchmaking::p2p_mode),
             ),
         )
         // Lobby exit - cleanup
@@ -177,7 +178,6 @@ fn run_app() {
             (
                 utils::setup::setup,
                 network::matchmaking::start_matchbox_socket.run_if(network::matchmaking::p2p_mode),
-                setup_chat_socket.run_if(network::matchmaking::p2p_mode),
             ),
         )
         // GameEnd entry - cleanup game entities, setup end screen and submit stats
