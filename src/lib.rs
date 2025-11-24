@@ -119,6 +119,8 @@ fn run_app() {
         .init_resource::<resources::RoundEndTimer>()
         .init_resource::<resources::Scores>()
         .init_resource::<UiReady>()
+        .init_resource::<lobby::PlayerProfile>()
+        .init_resource::<lobby::LobbyNotifications>()
         // REMOVED: OnEnter(GameState::WalletAuth) - handled by AuthUIPlugin
 
         // Flip UiReady after first frame (runs ONCE when false)
@@ -132,6 +134,7 @@ fn run_app() {
         .add_systems(
             OnEnter(states::GameState::Lobby),
             (
+                lobby::setup_lobby_resources,
                 lobby::spawn_lobby_knight,
                 lobby::spawn_lobby_camera,
                 lobby::spawn_lobby_lighting,

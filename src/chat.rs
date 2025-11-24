@@ -146,6 +146,7 @@ fn send_chat_messages(
     mut chat_messages: ResMut<ChatMessages>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
+    profile: Option<Res<crate::lobby::PlayerProfile>>,
 ) {
     let Some(mut chat_socket) = chat_socket else {
         return;
@@ -155,7 +156,7 @@ fn send_chat_messages(
     if !chat_input.is_focused {
         return;
     }
-    
+
     if !keys.just_pressed(KeyCode::Enter) {
         return;
     }
@@ -167,8 +168,10 @@ fn send_chat_messages(
 
     info!("Sending chat message: '{}'", text);
 
-    // Get player ID as author
-    let author = if let Some(id) = chat_socket.socket.id() {
+    // Use display name from profile, fallback to player ID
+    let author = if let Some(profile) = profile {
+        profile.display_name.clone()
+    } else if let Some(id) = chat_socket.socket.id() {
         format!("Player {}", id.0.as_u64_pair().0 % 1000)
     } else {
         "Unknown".to_string()
