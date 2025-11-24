@@ -8,7 +8,7 @@ use rand::{Rng, SeedableRng};
 use crate::{
     Config,
     core::constants::*,
-    entities::components::{Player, BulletReady, MoveDir, DistanceTraveled, Bullet},
+    entities::components::{Player, BulletReady, MoveDir, DistanceTraveled, Bullet, GameEntity},
     ModelAssets,
     core::resources::{Scores, SessionSeed},
     game::input::direction,
@@ -102,6 +102,7 @@ pub fn spawn_players(
             SceneRoot(models.player_1.clone()),
             Transform::from_translation(p1_pos).with_rotation(initial_rotation),
             Visibility::default(),
+            GameEntity, // Mark for cleanup
         ))
         .add_rollback()
         .with_children(|parent| {
@@ -118,6 +119,7 @@ pub fn spawn_players(
             SceneRoot(models.player_2.clone()),
             Transform::from_translation(p2_pos).with_rotation(initial_rotation),
             Visibility::default(),
+            GameEntity, // Mark for cleanup
         ))
         .add_rollback()
         .with_children(|parent| {

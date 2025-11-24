@@ -8,6 +8,10 @@ use std::{
 // Import from your crate
 use crate::Config;
 
+/// Component to mark game entities that should be despawned when leaving InGame state
+#[derive(Component)]
+pub struct GameEntity;
+
 #[derive(Component, Clone, Copy)]
 #[require(DistanceTraveled)]
 pub struct Player {

@@ -9,6 +9,7 @@ pub enum GameState {
     Lobby,       // NEW: Lobby for gear selection before matchmaking
     Matchmaking,
     InGame,
+    GameEnd,     // Game over screen showing results
 }
 
 #[derive(States, Clone, Eq, PartialEq, Debug, Hash, Default)]

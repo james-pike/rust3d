@@ -3,7 +3,13 @@ use bevy::prelude::*;
 use bevy_ggrs::{ggrs::{DesyncDetection, PlayerType}, *};
 use bevy_matchbox::prelude::*;
 use rand::{rng, Rng};
-use crate::{core::args::Args, Config, core::states::GameState, core::resources::SessionSeed};
+use crate::{
+    core::args::Args,
+    Config,
+    core::states::GameState,
+    core::resources::{SessionSeed, PlayerAddressMapping},
+    ui::auth::system::WalletInfo,
+};
 
 pub fn synctest_mode(args: Res<Args>) -> bool {
     args.synctest
@@ -24,6 +30,7 @@ pub fn wait_for_players(
     mut socket: ResMut<MatchboxSocket>,
     mut next_state: ResMut<NextState<GameState>>,
     args: Res<Args>,
+    wallet_info: Res<WalletInfo>,
 ) {
     if socket.get_channel(0).is_err() {
         return;
@@ -46,6 +53,47 @@ pub fn wait_for_players(
         seed ^= peer_id.0 ^ peer_id.1;
     }
     commands.insert_resource(SessionSeed(seed));
+
+    // Determine local player handle by finding our peer ID in the players list
+    let local_peer_id = socket.id().expect("no peer id assigned");
+    let mut local_handle = None;
+
+    for (i, player) in players.iter().enumerate() {
+        if let PlayerType::Remote(peer_id) = player {
+            if *peer_id == local_peer_id {
+                local_handle = Some(i);
+                break;
+            }
+        } else if let PlayerType::Local = player {
+            local_handle = Some(i);
+            break;
+        }
+    }
+
+    // Create player address mapping with local player's info
+    let mut address_mapping = PlayerAddressMapping::default();
+    if let Some(handle) = local_handle {
+        address_mapping.local_player_handle = Some(handle);
+        let local_address = if wallet_info.connected {
+            Some(wallet_info.address.clone())
+        } else {
+            Some(format!("guest_{}", local_peer_id.0.as_u128()))
+        };
+
+        if handle == 0 {
+            address_mapping.player0_address = local_address;
+        } else {
+            address_mapping.player1_address = local_address;
+        }
+
+        info!("Local player assigned handle {} with address {:?}",
+              handle,
+              address_mapping.get_local_address());
+    }
+
+    // TODO: Exchange opponent's Kaspa address via custom message protocol
+    // For now, opponent address will be unknown until we implement address exchange
+    commands.insert_resource(address_mapping);
 
     let mut session_builder = ggrs::SessionBuilder::<Config>::new()
         .with_num_players(num_players)
@@ -71,9 +119,23 @@ pub fn wait_for_players(
 pub fn start_synctest_session(
     mut commands: Commands,
     mut next_state: ResMut<NextState<GameState>>,
+    wallet_info: Res<WalletInfo>,
 ) {
     info!("Starting synctest session");
     let num_players = 2;
+
+    // In synctest mode, create mock player addresses
+    let mut address_mapping = PlayerAddressMapping::default();
+    address_mapping.local_player_handle = Some(0);
+    address_mapping.player0_address = Some(
+        if wallet_info.connected {
+            wallet_info.address.clone()
+        } else {
+            "synctest_player0".to_string()
+        }
+    );
+    address_mapping.player1_address = Some("synctest_player1".to_string());
+    commands.insert_resource(address_mapping);
 
     let mut session_builder = ggrs::SessionBuilder::<Config>::new()
         .with_num_players(num_players);

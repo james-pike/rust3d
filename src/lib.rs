@@ -63,6 +63,27 @@ pub fn run() {
     run_app();
 }
 
+// Reset game stats when returning to lobby
+fn reset_game_stats(
+    mut scores: ResMut<core::resources::Scores>,
+    mut stats_submitted: ResMut<game::leaderboard::StatsSubmitted>,
+    mut address_mapping: ResMut<core::resources::PlayerAddressMapping>,
+    mut game_end_data: ResMut<game::leaderboard::GameEndData>,
+) {
+    *scores = core::resources::Scores::default();
+    stats_submitted.0 = false;
+    *address_mapping = core::resources::PlayerAddressMapping::default();
+    *game_end_data = game::leaderboard::GameEndData::default();
+}
+
+// Force leaderboard refresh when entering lobby
+fn force_leaderboard_refresh(
+    mut leaderboard: ResMut<ui::leaderboard::LeaderboardData>,
+) {
+    info!("Forcing leaderboard refresh on lobby entry");
+    leaderboard.force_refresh();
+}
+
 fn run_app() {
     let args = Args::parse();
     eprintln!("{args:?}");
@@ -115,6 +136,10 @@ fn run_app() {
         .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)))
         .init_resource::<core::resources::RoundEndTimer>()
         .init_resource::<core::resources::Scores>()
+        .init_resource::<core::resources::PlayerAddressMapping>()
+        .init_resource::<game::leaderboard::StatsSubmitted>()
+        .init_resource::<game::leaderboard::GameEndData>()
+        .init_resource::<ui::leaderboard::LeaderboardData>()
         .init_resource::<UiReady>()
         .init_resource::<ui::lobby::PlayerProfile>()
         .init_resource::<ui::lobby::LobbyNotifications>()
@@ -137,6 +162,8 @@ fn run_app() {
                 ui::lobby::spawn_lobby_lighting,
                 ui::inventory::setup_inventory_system,
                 ui::hud::setup_player_vitals,
+                reset_game_stats,
+                force_leaderboard_refresh,
             ),
         )
         // Lobby exit - cleanup
@@ -153,6 +180,15 @@ fn run_app() {
                 setup_chat_socket.run_if(network::matchmaking::p2p_mode),
             ),
         )
+        // GameEnd entry - cleanup game entities, setup end screen and submit stats
+        .add_systems(
+            OnEnter(core::states::GameState::GameEnd),
+            (
+                game::cleanup::cleanup_game_entities,
+                game::leaderboard::setup_game_end,
+                game::leaderboard::submit_stats_on_game_end,
+            ).chain(), // Chain to ensure cleanup happens first
+        )
         // Aura systems (visual only, no rollback needed)
         .add_systems(Startup, setup_aura_effects)
         .add_systems(
@@ -160,6 +196,8 @@ fn run_app() {
             (
                 aura_effects_ui,
                 ui::lobby::lobby_ui.run_if(in_state(core::states::GameState::Lobby)),
+                ui::leaderboard::render_leaderboard_ui.run_if(in_state(core::states::GameState::Lobby)),
+                ui::game_end::render_game_end_ui.run_if(in_state(core::states::GameState::GameEnd)),
             ),
         )
         .add_systems(
@@ -185,6 +223,8 @@ fn run_app() {
                     ui::hud::simulate_vitals_changes,
                 )
                     .run_if(in_state(core::states::GameState::Lobby)),
+                // Leaderboard system in Lobby
+                ui::leaderboard::fetch_leaderboard.run_if(in_state(core::states::GameState::Lobby)),
                 // Matchmaking systems
                 (
                     network::matchmaking::wait_for_players.run_if(network::matchmaking::p2p_mode),
@@ -196,6 +236,9 @@ fn run_app() {
                 ui::score::update_score_ui.run_if(in_state(core::states::GameState::InGame)),
                 ui::auth::ui::update_wallet_display.run_if(in_state(core::states::GameState::InGame)),
                 network::session::handle_ggrs_events.run_if(in_state(core::states::GameState::InGame)),
+                game::leaderboard::check_game_end.run_if(in_state(core::states::GameState::InGame)),
+                // GameEnd systems
+                game::leaderboard::game_end_timer.run_if(in_state(core::states::GameState::GameEnd)),
                 // Inventory systems during gameplay
                 (
                     ui::inventory::handle_inventory_input,

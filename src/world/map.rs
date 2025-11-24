@@ -2,7 +2,7 @@
 use bevy::prelude::*;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand::{Rng, SeedableRng};
-use crate::{core::constants::*, entities::components::Wall, core::resources::{Scores, SessionSeed}};
+use crate::{core::constants::*, entities::components::{Wall, GameEntity}, core::resources::{Scores, SessionSeed}};
 
 pub fn generate_map(
     mut commands: Commands,
@@ -42,6 +42,7 @@ pub fn generate_map(
                 cell_z as f32 + size.z / 2. - MAP_SIZE as f32 / 2.,
             )),
             Visibility::default(),
+            GameEntity, // Mark for cleanup
         ));
     }
 }

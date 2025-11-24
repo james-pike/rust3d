@@ -1,6 +1,6 @@
 // setup.rs
 use bevy::prelude::*;
-use crate::core::constants::MAP_SIZE;
+use crate::{core::constants::MAP_SIZE, entities::components::GameEntity};
 
 pub fn setup(
     mut commands: Commands,
@@ -16,6 +16,7 @@ pub fn setup(
         })),
         Transform::from_xyz(0.0, 0.0, 0.0),
         Visibility::default(),
+        GameEntity, // Mark for cleanup
     ));
 
     // Directional light
@@ -26,6 +27,7 @@ pub fn setup(
             ..default()
         },
         Transform::from_xyz(4.0, 8.0, 4.0).looking_at(Vec3::ZERO, Vec3::Y),
+        GameEntity, // Mark for cleanup
     ));
 
     // Camera is already spawned in auth_ui.rs during WalletAuth state
