@@ -66,10 +66,10 @@ pub fn read_local_inputs(
 pub fn direction(input: u8) -> Vec2 {
     let mut direction = Vec2::ZERO;
     if input & INPUT_UP != 0 {
-        direction.y += 1.;
+        direction.y -= 1.;  // W moves up on screen (negative Z)
     }
     if input & INPUT_DOWN != 0 {
-        direction.y -= 1.;
+        direction.y += 1.;  // S moves down on screen (positive Z)
     }
     if input & INPUT_RIGHT != 0 {
         direction.x += 1.;

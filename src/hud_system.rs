@@ -386,25 +386,32 @@ pub fn simulate_vitals_changes(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut vitals: ResMut<PlayerVitals>,
     time: Res<Time>,
+    chat_input: Option<Res<crate::chat::ChatInput>>,
 ) {
-    if keyboard.just_pressed(KeyCode::KeyH) {
-        vitals.health = (vitals.health - 25.0).max(0.0);
+    // Don't process hotkeys if chat is focused
+    let chat_is_focused = chat_input.as_ref().map(|c| c.is_focused).unwrap_or(false);
+
+    if !chat_is_focused {
+        if keyboard.just_pressed(KeyCode::KeyH) {
+            vitals.health = (vitals.health - 25.0).max(0.0);
+        }
+
+        if keyboard.just_pressed(KeyCode::KeyJ) {
+            vitals.health = (vitals.health + 25.0).min(vitals.max_health);
+        }
+
+        if keyboard.just_pressed(KeyCode::KeyE) {
+            vitals.energy = (vitals.energy - 20.0).max(0.0);
+        }
+
+        if keyboard.just_pressed(KeyCode::KeyR) {
+            vitals.energy = (vitals.energy + 20.0).min(vitals.max_energy);
+        }
     }
-    
-    if keyboard.just_pressed(KeyCode::KeyJ) {
-        vitals.health = (vitals.health + 25.0).min(vitals.max_health);
-    }
-    
-    if keyboard.just_pressed(KeyCode::KeyE) {
-        vitals.energy = (vitals.energy - 20.0).max(0.0);
-    }
-    
-    if keyboard.just_pressed(KeyCode::KeyR) {
-        vitals.energy = (vitals.energy + 20.0).min(vitals.max_energy);
-    }
-    
+
+    // Always regenerate energy and experience (passive effects)
     vitals.energy = (vitals.energy + 5.0 * time.delta_secs()).min(vitals.max_energy);
-    
+
     vitals.experience += 10.0 * time.delta_secs();
     if vitals.experience >= vitals.max_experience {
         vitals.experience = 0.0;

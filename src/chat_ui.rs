@@ -8,9 +8,9 @@ pub struct ChatUIPlugin;
 impl Plugin for ChatUIPlugin {
     fn build(&self, app: &mut App) {
         app
-            // Setup UI on Matchmaking enter
+            // Setup UI on Lobby enter (earlier than Matchmaking)
             .add_systems(
-                OnEnter(GameState::Matchmaking),
+                OnEnter(GameState::Lobby),
                 setup_chat_ui,
             )
             // Update and debug in PostUpdate, but ONLY in game states
@@ -20,12 +20,14 @@ impl Plugin for ChatUIPlugin {
                     handle_chat_ui_interaction,
                     update_chat_ui
                         .run_if(
-                            in_state(GameState::Matchmaking)
+                            in_state(GameState::Lobby)
+                                .or(in_state(GameState::Matchmaking))
                                 .or(in_state(GameState::InGame))
-                        ),  // <-- Guard: No draw in WalletAuth/AssetLoading
+                        ),  // <-- Guard: Chat in Lobby, Matchmaking, and InGame
                     debug_chat_state
                         .run_if(
-                            in_state(GameState::Matchmaking)
+                            in_state(GameState::Lobby)
+                                .or(in_state(GameState::Matchmaking))
                                 .or(in_state(GameState::InGame))
                         ),  // <-- Guard: No logs in early states
                 ),

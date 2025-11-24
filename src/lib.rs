@@ -25,6 +25,7 @@ mod chat;
 mod chat_ui;
 mod auth;
 mod auth_ui;
+mod lobby;             // NEW: Lobby system
 mod inventory_system;  // NEW
 mod hud_system;        // NEW
 mod systems;           // ADD: For aura_effects (create src/systems/mod.rs with 'pub mod aura_effects;')
@@ -98,7 +99,7 @@ fn run_app() {
         .add_loading_state(
             LoadingState::new(states::GameState::AssetLoading)
                 .load_collection::<ModelAssets>()
-                .continue_to_state(states::GameState::Matchmaking),
+                .continue_to_state(states::GameState::Lobby), // Go to Lobby after loading
         )
         // GGRS rollback setup
         .init_ggrs_state::<states::RollbackState>()
@@ -119,7 +120,7 @@ fn run_app() {
         .init_resource::<resources::Scores>()
         .init_resource::<UiReady>()
         // REMOVED: OnEnter(GameState::WalletAuth) - handled by AuthUIPlugin
-     
+
         // Flip UiReady after first frame (runs ONCE when false)
         .add_systems(
             Update,
@@ -127,6 +128,22 @@ fn run_app() {
                 .run_if(resource_equals(UiReady(false))),
         )
         // REMOVED: Fallback system (unneeded - set_ui_ready works)
+        // Lobby entry - spawn knight, camera, lighting, and setup systems
+        .add_systems(
+            OnEnter(states::GameState::Lobby),
+            (
+                lobby::spawn_lobby_knight,
+                lobby::spawn_lobby_camera,
+                lobby::spawn_lobby_lighting,
+                inventory_system::setup_inventory_system,
+                hud_system::setup_player_vitals,
+            ),
+        )
+        // Lobby exit - cleanup
+        .add_systems(
+            OnExit(states::GameState::Lobby),
+            lobby::cleanup_lobby,
+        )
         // Matchmaking entry
         .add_systems(
             OnEnter(states::GameState::Matchmaking),
@@ -136,19 +153,14 @@ fn run_app() {
                 chat::setup_chat_socket.run_if(matchmaking::p2p_mode),
             ),
         )
-        // NEW: Inventory & HUD setup when entering InGame state
-        .add_systems(
-            OnEnter(states::GameState::InGame),
-            (
-                inventory_system::setup_inventory_system,
-                hud_system::setup_player_vitals,
-            ),
-        )
         // Aura systems (visual only, no rollback needed)
         .add_systems(Startup, setup_aura_effects)
         .add_systems(
             EguiPrimaryContextPass, // Fixed: Add to EguiPrimaryContextPass schedule
-            aura_effects_ui,
+            (
+                aura_effects_ui,
+                lobby::lobby_ui.run_if(in_state(states::GameState::Lobby)),
+            ),
         )
         .add_systems(
             Update,
@@ -158,16 +170,33 @@ fn run_app() {
         .add_systems(
             Update,
             (
+                // Inventory systems in Lobby
+                (
+                    inventory_system::handle_inventory_input,
+                    inventory_system::animate_inventory_drawer,
+                    inventory_system::update_texture_cache,
+                    inventory_system::inventory_ui,
+                    inventory_system::attach_to_bones,
+                )
+                    .run_if(in_state(states::GameState::Lobby)),
+                // HUD systems in Lobby
+                (
+                    hud_system::render_diablo_hud,
+                    hud_system::simulate_vitals_changes,
+                )
+                    .run_if(in_state(states::GameState::Lobby)),
+                // Matchmaking systems
                 (
                     matchmaking::wait_for_players.run_if(matchmaking::p2p_mode),
                     matchmaking::start_synctest_session.run_if(matchmaking::synctest_mode),
                 )
                     .run_if(in_state(states::GameState::Matchmaking)),
+                // InGame systems
                 camera::camera_follow.run_if(in_state(states::GameState::InGame)),
                 ui::update_score_ui.run_if(in_state(states::GameState::InGame)),
                 auth_ui::update_wallet_display.run_if(in_state(states::GameState::InGame)),
                 networking::handle_ggrs_events.run_if(in_state(states::GameState::InGame)),
-                // NEW: Inventory systems during gameplay
+                // Inventory systems during gameplay
                 (
                     inventory_system::handle_inventory_input,
                     inventory_system::animate_inventory_drawer,
@@ -176,7 +205,7 @@ fn run_app() {
                     inventory_system::attach_to_bones,
                 )
                     .run_if(in_state(states::GameState::InGame)),
-                // NEW: HUD systems during gameplay
+                // HUD systems during gameplay
                 (
                     hud_system::render_diablo_hud,
                     hud_system::simulate_vitals_changes,

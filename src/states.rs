@@ -6,6 +6,7 @@ pub enum GameState {
     WalletAuth,  // Initial auth state (no #[default] needed with insert_state)
     #[default]
     AssetLoading,
+    Lobby,       // NEW: Lobby for gear selection before matchmaking
     Matchmaking,
     InGame,
 }
