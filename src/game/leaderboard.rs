@@ -7,7 +7,7 @@ use crate::{
 };
 
 /// Win condition: first player to reach this score wins
-pub const WINNING_SCORE: u32 = 10;
+pub const WINNING_SCORE: u32 = 3;
 
 /// Resource to track if stats have been submitted for this game
 #[derive(Resource, Default)]
@@ -114,9 +114,20 @@ pub fn submit_stats_on_game_end(
         return;
     }
 
+    // Prevent duplicate submissions when both players have the same address (testing scenario)
+    if player0_addr.is_some() && player1_addr.is_some() && player0_addr == player1_addr {
+        warn!("Both players have the same address - skipping stats submission to prevent duplicates");
+        return;
+    }
+
+    let player0_name = address_mapping.player0_display_name.clone();
+    let player1_name = address_mapping.player1_display_name.clone();
+
     let payload = MatchResult {
         player1_address: player0_addr.unwrap_or_else(|| "unknown".to_string()),
         player2_address: player1_addr.unwrap_or_else(|| "unknown".to_string()),
+        player1_display_name: player0_name,
+        player2_display_name: player1_name,
         player1_score: scores.0,
         player2_score: scores.1,
         session_seed: format!("{}", session_seed.0),
@@ -156,6 +167,8 @@ pub fn submit_stats_on_game_end(
 struct MatchResult {
     player1_address: String,
     player2_address: String,
+    player1_display_name: Option<String>,
+    player2_display_name: Option<String>,
     player1_score: u32,
     player2_score: u32,
     session_seed: String,
@@ -167,8 +180,7 @@ async fn submit_stats_async(payload: MatchResult) -> Result<(), String> {
     use wasm_bindgen_futures::JsFuture;
     use web_sys::{Request, RequestInit, RequestMode, Response, Headers};
 
-    // TODO: Replace with your deployed Cloudflare Worker URL
-    let api_url = "https://dk-leaderboard-api.your-subdomain.workers.dev/api/stats";
+    let api_url = "https://dk-leaderboard-api.dagknights.workers.dev/api/stats";
 
     let mut opts = RequestInit::new();
     opts.method("POST");

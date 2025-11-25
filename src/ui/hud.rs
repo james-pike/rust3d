@@ -42,16 +42,19 @@ let screen_rect = ctx.viewport_rect();
 
 fn render_bottom_panel(ctx: &egui::Context, screen_rect: &egui::Rect) {
     let panel_height = 140.0;
+    let panel_width = screen_rect.width() * 0.66; // 66% width
+    let panel_x_offset = (screen_rect.width() - panel_width) / 2.0; // Center horizontally
+
     let panel_rect = egui::Rect::from_min_max(
-        egui::pos2(0.0, screen_rect.max.y - panel_height),
-        screen_rect.max,
+        egui::pos2(panel_x_offset, screen_rect.max.y - panel_height),
+        egui::pos2(panel_x_offset + panel_width, screen_rect.max.y),
     );
-    
+
     egui::Area::new(egui::Id::new("bottom_panel"))
         .fixed_pos(panel_rect.min)
         .show(ctx, |ui| {
             let painter = ui.allocate_painter(
-                egui::vec2(screen_rect.width(), panel_height),
+                egui::vec2(panel_width, panel_height),
                 egui::Sense::hover(),
             ).1;
             
@@ -95,15 +98,18 @@ fn render_health_orb(ctx: &egui::Context, screen_rect: &egui::Rect, vitals: &Pla
     let orb_size = 110.0;
     let orb_offset_x = 50.0;
     let orb_offset_y = 40.0;
-    
+
+    // Position within centered 2/3rds of screen (16.5% padding on each side)
+    let content_start_x = screen_rect.width() * 0.165;
+
     let orb_center = egui::pos2(
-        orb_offset_x + orb_size / 2.0,
+        content_start_x + orb_offset_x + orb_size / 2.0,
         screen_rect.max.y - orb_offset_y - orb_size / 2.0,
     );
     
     egui::Area::new(egui::Id::new("health_orb"))
         .fixed_pos(egui::pos2(
-            orb_offset_x,
+            content_start_x + orb_offset_x,
             screen_rect.max.y - orb_offset_y - orb_size,
         ))
         .show(ctx, |ui| {
@@ -181,15 +187,18 @@ fn render_energy_orb(ctx: &egui::Context, screen_rect: &egui::Rect, vitals: &Pla
     let orb_size = 110.0;
     let orb_offset_x = 50.0;
     let orb_offset_y = 40.0;
-    
+
+    // Position within centered 2/3rds of screen (16.5% padding on each side)
+    let content_end_x = screen_rect.width() * 0.835;
+
     let orb_center = egui::pos2(
-        screen_rect.max.x - orb_offset_x - orb_size / 2.0,
+        content_end_x - orb_offset_x - orb_size / 2.0,
         screen_rect.max.y - orb_offset_y - orb_size / 2.0,
     );
     
     egui::Area::new(egui::Id::new("energy_orb"))
         .fixed_pos(egui::pos2(
-            screen_rect.max.x - orb_offset_x - orb_size,
+            content_end_x - orb_offset_x - orb_size,
             screen_rect.max.y - orb_offset_y - orb_size,
         ))
         .show(ctx, |ui| {

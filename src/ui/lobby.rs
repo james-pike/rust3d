@@ -9,6 +9,7 @@ use crate::{
     systems::aura_effects::AuraDisc,
     core::states::GameState,
     ui::inventory::KnightCharacter,
+    ui::auth::system::WalletInfo,
 };
 
 /// Component to mark lobby entities that should be despawned when leaving lobby
@@ -60,10 +61,30 @@ impl LobbyNotifications {
 /// Setup lobby resources
 pub fn setup_lobby_resources(
     mut notifications: ResMut<LobbyNotifications>,
-    profile: Res<PlayerProfile>,
+    mut profile: ResMut<PlayerProfile>,
+    wallet_info: Res<WalletInfo>,
     time: Res<Time>,
 ) {
     info!("Setting up lobby resources");
+
+    // Load display name from localStorage if it exists (WASM only)
+    #[cfg(target_arch = "wasm32")]
+    {
+        if wallet_info.connected {
+            if let Some(storage) = web_sys::window()
+                .and_then(|w| w.local_storage().ok())
+                .flatten()
+            {
+                let key = format!("display_name_{}", wallet_info.address);
+                if let Ok(Some(saved_name)) = storage.get_item(&key) {
+                    if !saved_name.is_empty() {
+                        profile.display_name = saved_name.clone();
+                        info!("Loaded saved display name '{}' for address {}", saved_name, wallet_info.address);
+                    }
+                }
+            }
+        }
+    }
 
     // Add notification that player entered lobby
     notifications.add(
@@ -180,6 +201,7 @@ pub fn lobby_ui(
     current_state: Res<State<GameState>>,
     mut profile: ResMut<PlayerProfile>,
     notifications: Res<LobbyNotifications>,
+    wallet_info: Res<WalletInfo>,
     time: Res<Time>,
 ) {
     // Debug: Log current state
@@ -230,6 +252,22 @@ pub fn lobby_ui(
 
                     if name_response.changed() {
                         info!("Display name changed to: {}", profile.display_name);
+
+                        // Save display name to localStorage (WASM only)
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            if let Some(storage) = web_sys::window()
+                                .and_then(|w| w.local_storage().ok())
+                                .flatten()
+                            {
+                                let key = format!("display_name_{}", wallet_info.address);
+                                if let Err(e) = storage.set_item(&key, &profile.display_name) {
+                                    warn!("Failed to save display name to localStorage: {:?}", e);
+                                } else {
+                                    info!("Saved display name '{}' for address {}", profile.display_name, wallet_info.address);
+                                }
+                            }
+                        }
                     }
                 });
 
@@ -287,28 +325,19 @@ pub fn lobby_ui(
             });
         });
 
-    // Lobby notifications panel - bottom left
+    // Lobby notifications panel - above chat UI
     egui::Window::new("lobby_notifications")
         .title_bar(false)
         .resizable(false)
-        .fixed_pos([20.0, screen_rect.height() - 250.0])
-        .fixed_size([350.0, 180.0])
+        .fixed_pos([20.0, screen_rect.height() - 495.0])
+        .fixed_size([350.0, 90.0])
         .frame(egui::Frame::default()
             .fill(egui::Color32::from_rgba_unmultiplied(20, 15, 10, 230))
             .stroke(egui::Stroke::new(2.0, egui::Color32::from_rgb(80, 60, 40)))
-            .inner_margin(15.0))
+            .inner_margin(10.0))
         .show(ctx, |ui| {
-            ui.label(egui::RichText::new("LOBBY ACTIVITY")
-                .size(16.0)
-                .color(egui::Color32::from_rgb(200, 180, 140))
-                .strong());
-
-            ui.add_space(8.0);
-            ui.separator();
-            ui.add_space(5.0);
-
             egui::ScrollArea::vertical()
-                .max_height(110.0)
+                .max_height(70.0)
                 .show(ui, |ui| {
                     if notifications.messages.is_empty() {
                         ui.label(egui::RichText::new("No recent activity...")

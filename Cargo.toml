@@ -35,6 +35,7 @@ features = [
     "RequestMode",
     "Response",
     "Headers",
+    "Storage",
 ]
 
 [profile.release]

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extreme Bevy - Kaspa Battle Arena</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s;
+        }
+        
+        #loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .loading-content {
+            text-align: center;
+        }
+        
+        .loading-title {
+            color: #fff;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(100, 200, 255, 0.5);
+        }
+        
+        .loading-text {
+            color: #aaa;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #64c8ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .kasware-status {
+            margin-top: 20px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: inline-block;
+        }
+        
+        .kasware-detected {
+            background: rgba(100, 255, 100, 0.1);
+            color: #64ff64;
+            border: 1px solid rgba(100, 255, 100, 0.3);
+        }
+        
+        .kasware-not-found {
+            background: rgba(255, 200, 100, 0.1);
+            color: #ffc864;
+            border: 1px solid rgba(255, 200, 100, 0.3);
+        }
+        
+        .install-link {
+            color: #64c8ff;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .install-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+<link rel="modulepreload" href="/extreme_bevy-e07a86b10a50f4e9.js" crossorigin="anonymous" integrity="sha384-Yplq9pFH9FuN5x22YfOBjGk9HmnuZVliKUy8JZgItusaAlpDXlb/kTQN3JFoy1eo"><link rel="preload" href="/extreme_bevy-e07a86b10a50f4e9_bg.wasm" crossorigin="anonymous" integrity="sha384-Xy06yHHh9RLs7jH7xvyUsR5tGvMEXEldGOSISIY3BRdaesa3RpverweH1pKqU7qx" as="fetch" type="application/wasm"></head>
+<body>
+    <div id="loading-screen">
+        <div class="loading-content">
+            <div class="loading-title">Extreme Bevy</div>
+            <div class="loading-text">Initializing Kasware wallet integration...</div>
+            <div class="spinner"></div>
+            <div id="kasware-status" class="kasware-status"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Kasware detection and initialization
+        async function waitForKasware(timeout = 3000) {
+            const start = Date.now();
+            while (!window.kasware && Date.now() - start < timeout) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            return !!window.kasware;
+        }
+
+        async function initializeApp() {
+            const statusEl = document.getElementById('kasware-status');
+            const loadingTextEl = document.querySelector('.loading-text');
+            
+            // Wait for Kasware wallet
+            loadingTextEl.textContent = 'Checking for Kasware wallet...';
+            const kaswareFound = await waitForKasware();
+            
+            if (kaswareFound) {
+                statusEl.className = 'kasware-status kasware-detected';
+                statusEl.innerHTML = '✓ Kasware wallet detected';
+                console.log('Kasware wallet found');
+            } else {
+                statusEl.className = 'kasware-status kasware-not-found';
+                statusEl.innerHTML = '⚠ Kasware not detected. <a href="https://kasware.xyz" target="_blank" class="install-link">Install here</a>';
+                console.warn('Kasware wallet not found. Game will prompt for installation.');
+            }
+            
+            // Load the game
+            loadingTextEl.textContent = 'Loading game...';
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            import('./extreme_bevy.js').then(async module => {
+                await module.default();
+                
+                // Hide loading screen after game initializes
+                setTimeout(() => {
+                    document.getElementById('loading-screen').classList.add('hidden');
+                }, 1000);
+            });
+        }
+
+        // Start initialization
+        initializeApp().catch(err => {
+            console.error('Failed to initialize app:', err);
+            document.querySelector('.loading-text').textContent = 'Error loading game. Please refresh.';
+            document.querySelector('.loading-text').style.color = '#ff6464';
+        });
+
+        // Expose Kasware helper utilities globally
+        window.kaswareHelper = {
+            isInstalled: () => typeof window.kasware !== 'undefined',
+            getVersion: () => window.kasware?.version || 'unknown'
+        };
+    </script>
+
+<script type="module">
+import init, * as bindings from '/extreme_bevy-e07a86b10a50f4e9.js';
+const wasm = await init({ module_or_path: '/extreme_bevy-e07a86b10a50f4e9_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script></body>
+</html>

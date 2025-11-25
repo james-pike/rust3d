@@ -4,6 +4,18 @@ use bevy_egui::{egui, EguiContexts};
 use serde::{Deserialize, Serialize};
 use crate::core::states::GameState;
 
+/// Event sent when leaderboard data is fetched
+#[derive(Event)]
+pub struct LeaderboardFetched {
+    pub entries: Vec<LeaderboardEntry>,
+}
+
+/// Event sent when leaderboard fetch fails
+#[derive(Event)]
+pub struct LeaderboardFetchError {
+    pub error: String,
+}
+
 /// Resource to store leaderboard data
 #[derive(Resource, Default, Clone)]
 pub struct LeaderboardData {
@@ -50,6 +62,12 @@ impl LeaderboardData {
     }
 }
 
+use std::cell::RefCell;
+
+thread_local! {
+    static PENDING_LEADERBOARD: RefCell<Option<Result<Vec<LeaderboardEntry>, String>>> = RefCell::new(None);
+}
+
 /// Fetch leaderboard data from API
 #[cfg(target_arch = "wasm32")]
 pub fn fetch_leaderboard(
@@ -61,16 +79,32 @@ pub fn fetch_leaderboard(
 
     let current_time = time.elapsed_secs_f64();
 
+    // Check if there's a pending result first
+    let pending_result = PENDING_LEADERBOARD.with(|p| p.borrow_mut().take());
+    if let Some(result) = pending_result {
+        match result {
+            Ok(entries) => {
+                leaderboard.set_entries(entries, current_time);
+                info!("Leaderboard updated with {} entries", leaderboard.entries.len());
+            }
+            Err(e) => {
+                leaderboard.set_error(e.clone());
+                error!("Failed to fetch leaderboard: {}", e);
+            }
+        }
+        return;
+    }
+
     // Fetch every 30 seconds
     if !leaderboard.is_loading && (leaderboard.last_fetch == 0.0 || current_time - leaderboard.last_fetch > 30.0) {
+        info!("Starting leaderboard fetch...");
         leaderboard.set_loading();
 
         spawn_local(async move {
-            // Note: This will run async but we can't update the resource from here
-            // The actual update happens in a separate system
-            if let Err(e) = fetch_leaderboard_async().await {
-                error!("Failed to fetch leaderboard: {}", e);
-            }
+            let result = fetch_leaderboard_async().await;
+            PENDING_LEADERBOARD.with(|p| {
+                *p.borrow_mut() = Some(result);
+            });
         });
     }
 }
@@ -124,8 +158,7 @@ async fn fetch_leaderboard_async() -> Result<Vec<LeaderboardEntry>, String> {
     use wasm_bindgen_futures::JsFuture;
     use web_sys::{Request, RequestInit, RequestMode, Response};
 
-    // TODO: Replace with your deployed Cloudflare Worker URL
-    let api_url = "https://dk-leaderboard-api.your-subdomain.workers.dev/api/leaderboard?sort=kd&limit=10";
+    let api_url = "https://dk-leaderboard-api.dagknights.workers.dev/api/leaderboard?sort=kd&limit=10";
 
     let mut opts = RequestInit::new();
     opts.method("GET");
