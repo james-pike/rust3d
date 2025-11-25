@@ -100,7 +100,7 @@
             text-decoration: underline;
         }
     </style>
-</head>
+<link rel="modulepreload" href="/extreme_bevy-e07a86b10a50f4e9.js" crossorigin="anonymous" integrity="sha384-Yplq9pFH9FuN5x22YfOBjGk9HmnuZVliKUy8JZgItusaAlpDXlb/kTQN3JFoy1eo"><link rel="preload" href="/extreme_bevy-e07a86b10a50f4e9_bg.wasm" crossorigin="anonymous" integrity="sha384-Xy06yHHh9RLs7jH7xvyUsR5tGvMEXEldGOSISIY3BRdaesa3RpverweH1pKqU7qx" as="fetch" type="application/wasm"></head>
 <body>
     <div id="loading-screen">
         <div class="loading-content">
@@ -166,5 +166,16 @@
             getVersion: () => window.kasware?.version || 'unknown'
         };
     </script>
-</body>
+
+<script type="module">
+import init, * as bindings from '/extreme_bevy-e07a86b10a50f4e9.js';
+const wasm = await init({ module_or_path: '/extreme_bevy-e07a86b10a50f4e9_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script></body>
 </html>
